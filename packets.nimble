@@ -5,7 +5,7 @@ license     = "MIT"
 author      = "Vladimir Berezenko <qmaster2000@gmail.com>"
 
 # Dependencies
-requires "nim >= 0.20.00"
+requires "nim >= 0.20.00", "packedjson"
 
 proc runTest(input: string) =
   let cmd = "nim c -r -d:packetDumpTree=1 " & input

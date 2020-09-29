@@ -1,11 +1,11 @@
 import unittest
 import options
 import tables
-import json
 import times
+import packets/json/json
 import packets/packets
 import packets/json/serialization
-import packets/json/processors/[boolean, numeric, str, datetime, enums]
+import packets/json/processors/[boolean, numeric, str, datetime, enums, optional]
 
 type EnumCheck = enum
   first = 1
@@ -73,7 +73,7 @@ suite "Packets":
     check(pkt.field5 == "test string")
     check(pkt.field6 == nowTime)
     check(pkt.field7 == nowDate)
-    let js: JsonNode = pkt.dump()
+    var js: JsonTree = pkt.dump()
     #echo "Resulted JSON: ", $js
     check(js["field1"] == %10)
     check(js["field2"] == %862.0)
@@ -99,8 +99,8 @@ suite "Packets":
     check(pkt2.field1 == 100)
     check(pkt.field2 == "x")
     check(pkt2.field2 == "y")
-    let js: JsonNode = pkt.dump()
-    let js2: JsonNode = pkt2.dump()
+    var js: JsonTree = pkt.dump()
+    var js2: JsonTree = pkt2.dump()
     check(js["field1"] == %10)
     check(js["field2"] == %"x")
     check(js2["field1"] == %100)
@@ -118,7 +118,7 @@ suite "Packets":
     var pkt = PacketWithRename.init(field1 = 7.0, field2 = false)
     check(pkt.field1 == 7.0)
     check(pkt.field2 == false)
-    let js: JsonNode = pkt.dump()
+    var js: JsonTree = pkt.dump()
     check(js["field1"] == %7.0)
     check(js.hasKey("field2") == false)
     check(js["field3"] == %false)
@@ -131,7 +131,7 @@ suite "Packets":
     var pkt = InheritedPacket.init(field2=nowTime)
     check(pkt.field1 == 3.0)
     check(pkt.field2 == nowTime)
-    let js: JsonNode = pkt.dump()
+    let js: JsonTree = pkt.dump()
     check(js["field1"] == %3.0)
     check(js["field2"] == %(nowTime.toUnix))
   
@@ -142,8 +142,8 @@ suite "Packets":
     check(pkt.field2 == none(bool))
     check(pkt2.field1 == 1000)
     check(pkt2.field2 == true.option)
-    let js: JsonNode = pkt.dump()
-    let js2: JsonNode = pkt2.dump()
+    let js: JsonTree = pkt.dump()
+    let js2: JsonTree = pkt2.dump()
     check(js["field1"] == %10)
     check(js.hasKey("field2") == false)
     check(js2["field1"] == %1000)
@@ -165,9 +165,9 @@ suite "Packets":
     check(pkt2.field2 == 3.0.option)
     check(pkt3.field1 == 7.option)
     check(pkt3.field2 == 4.0.option)
-    let js: JsonNode = pkt.dump()
-    let js2: JsonNode = pkt2.dump()
-    let js3: JsonNode = pkt3.dump()
+    let js: JsonTree = pkt.dump()
+    let js2: JsonTree = pkt2.dump()
+    let js3: JsonTree = pkt3.dump()
     check(js.hasKey("field1") == false)
     check(js["field2"] == %3.0)
     check(js2["field1"] == %1000)

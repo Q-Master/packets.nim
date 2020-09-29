@@ -1,7 +1,7 @@
-import json
 import options
 import strutils
 import tables
+import ./json
 import ../internal/types
 
 proc load*[T: TPacket](p: type[T], json: JsonNode): T {.raises:[ValueError].} =
@@ -27,7 +27,7 @@ proc load*[T: TPacket](p: type[T], json: JsonNode): T {.raises:[ValueError].} =
 
 proc load*[T: TPacket](p: type[Option[T]], json: JsonNode): Option[T] {.raises:[ValueError].} =
     mixin load
-    if json.kind == JNull:
+    if json.isNil() or json.kind == JNull:
         result = none(T)
     else:
         result = T.load(json).option
@@ -43,7 +43,7 @@ proc load*[T](to: var seq[T], json: JsonNode) {.raises:[ValueError].} =
 
 proc load*[T](to: var Option[seq[T]], json: JsonNode) {.raises:[ValueError].} =
     mixin load
-    if json.kind == JNull:
+    if json.isNil() or json.kind == JNull:
         to = none(seq[T])
     else:
         var t: seq[T]
@@ -55,7 +55,7 @@ proc loads*[T: TPacket](p: type[T], buffer: string): T =
     let js = parseJson(string)
     return load(p, js)
 
-proc dump*[T: TPacket](p: T): JsonNode =
+proc dump*[T: TPacket](p: T): JsonTree =
     mixin dump
     result = newJObject()
     result["id"]= %p.id
@@ -73,21 +73,21 @@ proc dump*[T: TPacket](p: T): JsonNode =
             else:
                 result[key] = v.dump()
 
-proc dump*[T: TPacket](p: Option[T]): JsonNode =
+proc dump*[T: TPacket](p: Option[T]): JsonTree =
     mixin dump
     if p.isSome():
         return p.get().dump()
     else:
         return newJNull()
 
-proc dump*[T](t: seq[T]): JsonNode =
+proc dump*[T](t: seq[T]): JsonTree =
     mixin dump
-    var o: JsonNode = newJArray()
+    var o: JsonTree = newJArray()
     for item in t:
         o.add(item.dump())
     result = o
 
-proc dump*[T](t: Option[seq[T]]): JsonNode =
+proc dump*[T](t: Option[seq[T]]): JsonTree =
     mixin dump
     if t.isSome():
         result = t.get().dump()

@@ -1,6 +1,5 @@
-import json
-import options
 import times
+import ../json
 
 #[
     Time, DateTime
@@ -13,37 +12,17 @@ type
 
 proc load*(to: var Time, json: JsonNode) {.raises:[ValueError].} =
     if json.kind == JInt:
-        to = fromUnix(json.num)
+        to = fromUnix(json.getBiggestInt())
     elif json.kind == JFloat:
-        to = fromUnixFloat(json.fnum)
-    else:
-        raise newException(ValueError, "Wrong field type: " & $json.kind)
-
-proc load*(to: var Option[Time], json: JsonNode) {.raises:[ValueError].} =
-    if json.isNil() or json.kind == JNull:
-        to = none(Time)
-    elif json.kind == JInt:
-        to = fromUnix(json.num).option
-    elif json.kind == JFloat:
-        to = fromUnixFloat(json.fnum).option
+        to = fromUnixFloat(json.getFloat())
     else:
         raise newException(ValueError, "Wrong field type: " & $json.kind)
 
 proc load*(to: var DateTime, json: JsonNode) {.raises:[ValueError].} =
     if json.kind == JInt:
-        to = local(fromUnix(json.num))
+        to = local(fromUnix(json.getBiggestInt()))
     elif json.kind == JFloat:
-        to = local(fromUnixFloat(json.fnum))
-    else:
-        raise newException(ValueError, "Wrong field type: " & $json.kind)
-
-proc load*(to: var Option[DateTime], json: JsonNode) {.raises:[ValueError].} =
-    if json.isNil() or json.kind == JNull:
-        to = none(DateTime)
-    elif json.kind == JInt:
-        to = local(fromUnix(json.num)).option
-    elif json.kind == JFloat:
-        to = local(fromUnixFloat(json.fnum)).option
+        to = local(fromUnixFloat(json.getFloat()))
     else:
         raise newException(ValueError, "Wrong field type: " & $json.kind)
 
@@ -52,15 +31,3 @@ proc dump*(t: Time): JsonNode =
 
 proc dump*(t: DateTime): JsonNode =
     result = newJInt(t.toTime.toUnix)
-
-proc dump*(t: Option[Time]): JsonNode =
-    if t.isSome():
-        result = t.get().dump()
-    else:
-        result = newJNull()
-
-proc dump*(t: Option[DateTime]): JsonNode =
-    if t.isSome():
-        result = t.get().dump()
-    else:
-        result = newJNull()
