@@ -36,7 +36,9 @@ packet Boolean:
   var boolean*: bool
   var booleanWithName* {.as_name: "boolean1".}: bool
   var booleanWithDefault*: bool = true
-  var booleanOptional: Option[bool]
+  var booleanOptional*: Option[bool]
+  var booleanOptionalWithDefault*: Option[bool] = false
+  var notSerialized: float
 
 var booleanPacket = Boolean.init(boolean = true, booleanWithName = false)
 var jsonData = %booleanPacket

@@ -91,7 +91,7 @@ macro packet*(head, body: untyped): untyped =
                     item.params.add(n)
                     if varData.fieldExported:
                         fieldList.add(newStrLitNode($varData.fieldName))
-                    if varData.fieldRequired:
+                    if varData.fieldRequired and varData.fieldExported:
                         requiredList.add(newStrLitNode($varData.fieldName))
                     if not (varData.fieldAsName == ""):
                         mappedList.add(nnkExprColonExpr.newTree(newStrLitNode($varData.fieldName), newStrLitNode(varData.fieldAsName)))

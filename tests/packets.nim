@@ -34,6 +34,22 @@ packet BasePacket:
 packet InheritedPacket of BasePacket:
   var field2*: Time
 
+packet PacketWithOptionalFields:
+  var field1*: int
+  var field2*: Option[bool]
+
+packet PacketWithOptionalFieldsAndDefault:
+  var field1*: Option[int]
+  var field2*: Option[float] = 3.0
+
+packet PacketWithNotExportedFields:
+  var field1: int #When loaded the contents of the field are undefined
+  var field2*: bool
+
+packet PacketWithSubpacket:
+  var field1*: int
+  var field2*: SimplePacketWithDefault
+
 suite "Packets":
   setup:
     discard
@@ -58,7 +74,7 @@ suite "Packets":
     check(pkt.field6 == nowTime)
     check(pkt.field7 == nowDate)
     let js: JsonNode = pkt.dump()
-    echo "Resulted JSON: ", $js
+    #echo "Resulted JSON: ", $js
     check(js["field1"] == %10)
     check(js["field2"] == %862.0)
     check(js["field3"] == %first.ord)
@@ -118,3 +134,69 @@ suite "Packets":
     let js: JsonNode = pkt.dump()
     check(js["field1"] == %3.0)
     check(js["field2"] == %(nowTime.toUnix))
+  
+  test "Packet with optional field":
+    let pkt = PacketWithOptionalFields.init(field1 = 10)
+    let pkt2 = PacketWithOptionalFields.init(field1 = 1000, field2 = true.option)
+    check(pkt.field1 == 10)
+    check(pkt.field2 == none(bool))
+    check(pkt2.field1 == 1000)
+    check(pkt2.field2 == true.option)
+    let js: JsonNode = pkt.dump()
+    let js2: JsonNode = pkt2.dump()
+    check(js["field1"] == %10)
+    check(js.hasKey("field2") == false)
+    check(js2["field1"] == %1000)
+    check(js2["field2"] == %true)
+    let pktLoaded = PacketWithOptionalFields.load(js)
+    let pktLoaded2 = PacketWithOptionalFields.load(js2)
+    check(pktLoaded.field1 == 10)
+    check(pktLoaded.field2 == none(bool))
+    check(pktLoaded2.field1 == 1000)
+    check(pktLoaded2.field2 == true.option)
+
+  test "Packet with optional field and default value":
+    let pkt = PacketWithOptionalFieldsAndDefault.init()
+    let pkt2 = PacketWithOptionalFieldsAndDefault.init(field1 = 1000.option)
+    let pkt3 = PacketWithOptionalFieldsAndDefault.init(field1 = 7.option, field2 = 4.0.option)
+    check(pkt.field1 == none(int))
+    check(pkt.field2 == 3.0.option)
+    check(pkt2.field1 == 1000.option)
+    check(pkt2.field2 == 3.0.option)
+    check(pkt3.field1 == 7.option)
+    check(pkt3.field2 == 4.0.option)
+    let js: JsonNode = pkt.dump()
+    let js2: JsonNode = pkt2.dump()
+    let js3: JsonNode = pkt3.dump()
+    check(js.hasKey("field1") == false)
+    check(js["field2"] == %3.0)
+    check(js2["field1"] == %1000)
+    check(js2["field2"] == %3.0)
+    check(js3["field1"] == %7)
+    check(js3["field2"] == %4.0)
+
+  test "Packet with not exported fields":
+    let pkt = PacketWithNotExportedFields.init(field1 = 5, field2 = false)
+    check(pkt.field1 == 5)
+    check(pkt.field2 == false)
+    let js = pkt.dump()
+    check(js.hasKey("field1") == false)
+    check(js["field2"] == %false)
+    let pktLoaded = PacketWithNotExportedFields.load(js)
+    check(pktLoaded.field2 == false)
+
+  test "Packet with subpacket":
+    let pkt = PacketWithSubpacket.init(field1 = 50, field2 = SimplePacketWithDefault.init(field2 = "subpacket"))
+    check(pkt.field1 == 50)
+    check(pkt.field2 is SimplePacketWithDefault)
+    check(pkt.field2.field1 == 10)
+    check(pkt.field2.field2 == "subpacket")
+    let js = pkt.dump()
+    #echo "Resulted JSON: ", $js
+    check(js["field1"] == %50)
+    check(js["field2"]["field2"] == %"subpacket")
+    let pktLoaded = PacketWithSubpacket.load(js)
+    check(pktLoaded.field1 == 50)
+    check(pktLoaded.field2 is SimplePacketWithDefault)
+    check(pktLoaded.field2.field1 == 10)
+    check(pktLoaded.field2.field2 == "subpacket")
