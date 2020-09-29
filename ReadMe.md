@@ -41,7 +41,7 @@ packet Boolean:
   var notSerialized: float
 
 var booleanPacket = Boolean.init(boolean = true, booleanWithName = false)
-var jsonData = %booleanPacket
+var jsonData = booleanPacket.dump()
 let decodedBoolean = Boolean.load(jsonData)
 ```
 
