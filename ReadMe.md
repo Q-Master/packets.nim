@@ -23,7 +23,7 @@ $ nimble install https://github.com/Q-Master/packets.nim.git
 
 Usage
 ---
-Mostly usage examples could be seen in examples directory.
+Mostly usage examples could be seen in test directory.
 ```nim
 import json
 import tables
