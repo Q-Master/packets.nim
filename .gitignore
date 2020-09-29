@@ -7,3 +7,4 @@ Contribute.md
 *.exe
 *.cfg
 *.out
+tests/benchmark

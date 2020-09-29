@@ -2,10 +2,8 @@ import unittest
 import options
 import tables
 import times
-import packets/json/json
 import packets/packets
 import packets/json/serialization
-import packets/json/processors/[boolean, numeric, str, datetime, enums, optional]
 
 type EnumCheck = enum
   first = 1

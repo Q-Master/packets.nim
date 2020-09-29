@@ -3,6 +3,8 @@ import strutils
 import tables
 import ./json
 import ../internal/types
+import ./processors/[boolean, numeric, str, datetime, enums, optional]
+export json, boolean, numeric, str, datetime, enums, optional
 
 proc load*[T: TPacket](p: type[T], json: JsonNode): T {.raises:[ValueError].} =
     mixin load

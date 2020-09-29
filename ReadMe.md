@@ -23,14 +23,15 @@ $ nimble install https://github.com/Q-Master/packets.nim.git
 
 Usage
 ---
-Mostly usage examples could be seen in test directory.
+Mostly usage examples could be seen in tests directory.
+The building is by default with std json, as benchmarks showed it is faster 3 times than
+packedjson.
+`-d:usePackedJson` enables packedjson.
 ```nim
-import json
 import tables
 import options
 import packets/packets
 import packets/json/serialization
-import packets/json/processors/[boolean, numeric, str, datetime, enums]
 
 packet Boolean:
   var boolean*: bool
