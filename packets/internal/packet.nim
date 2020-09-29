@@ -244,7 +244,7 @@ proc extractFromVar(n: NimNode): TVarData {.compiletime.}=
     else:
         case n[2].kind:
             of nnkEmpty:
-                fieldDefault = n[2]
+                fieldDefault = nnkCall.newTree(ident("none"), fieldType[1])
             of nnkCall:
                 if eqIdent(n[2][0], "option"):
                     fieldDefault = n[2]

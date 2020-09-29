@@ -65,10 +65,11 @@ proc dump*[T: TPacket](p: T): JsonNode =
         if k in fields:
             let key = mapping.getOrDefault(k, k)
             when v is Option:
-                try:
-                    result[key] = v.dump()
-                except UnpackError:
-                    discard
+                if v.isSome:
+                    try:
+                        result[key] = v.dump()
+                    except UnpackError:
+                        discard
             else:
                 result[key] = v.dump()
 
