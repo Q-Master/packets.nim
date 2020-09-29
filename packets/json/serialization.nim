@@ -68,7 +68,7 @@ proc dump*[T: TPacket](p: T): JsonNode =
                 try:
                     result[key] = v.dump()
                 except UnpackError:
-                    continue
+                    discard
             else:
                 result[key] = v.dump()
 

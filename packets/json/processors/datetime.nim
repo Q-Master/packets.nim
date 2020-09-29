@@ -48,10 +48,10 @@ proc load*(to: var Option[DateTime], json: JsonNode) {.raises:[ValueError].} =
         raise newException(ValueError, "Wrong field type: " & $json.kind)
 
 proc dump*(t: Time): JsonNode =
-    result = newJInt(int32(t.toUnix))
+    result = newJInt(t.toUnix)
 
 proc dump*(t: DateTime): JsonNode =
-    result = newJInt(int32(t.toTime.toUnix))
+    result = newJInt(t.toTime.toUnix)
 
 proc dump*(t: Option[Time]): JsonNode =
     if t.isSome():
