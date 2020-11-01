@@ -75,26 +75,12 @@ proc dump*[T: TPacket](p: T): JsonTree =
             else:
                 result[key] = v.dump()
 
-proc dump*[T: TPacket](p: Option[T]): JsonTree =
-    mixin dump
-    if p.isSome():
-        return p.get().dump()
-    else:
-        return newJNull()
-
 proc dump*[T](t: seq[T]): JsonTree =
     mixin dump
     var o: JsonTree = newJArray()
     for item in t:
         o.add(item.dump())
     result = o
-
-proc dump*[T](t: Option[seq[T]]): JsonTree =
-    mixin dump
-    if t.isSome():
-        result = t.get().dump()
-    else:
-        result = newJNull()
 
 proc dumps*[T: TPacket](p: T): string =
     mixin dump

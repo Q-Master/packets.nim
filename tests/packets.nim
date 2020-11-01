@@ -48,6 +48,9 @@ packet PacketWithSubpacket:
   var field1*: int
   var field2*: SimplePacketWithDefault
 
+packet PacketWithOptionalSubpacket:
+    var field1*: Option[SimplePacketWithDefault]
+
 suite "Packets":
   setup:
     discard
@@ -198,3 +201,16 @@ suite "Packets":
     check(pktLoaded.field2 is SimplePacketWithDefault)
     check(pktLoaded.field2.field1 == 10)
     check(pktLoaded.field2.field2 == "subpacket")
+
+  test "Packet with optional subpacket":
+    let pkt = PacketWithOptionalSubpacket.init(field1 = SimplePacketWithDefault.init(field2 = "subpacket").option)
+    check(pkt.field1.get() is SimplePacketWithDefault)
+    check(pkt.field1.get().field1 == 10)
+    check(pkt.field1.get().field2 == "subpacket")
+    let js = pkt.dump()
+    #echo "Resulted JSON: ", $js
+    check(js["field1"]["field2"] == %"subpacket")
+    let pktLoaded = PacketWithOptionalSubpacket.load(js)
+    check(pktLoaded.field1.get() is SimplePacketWithDefault)
+    check(pktLoaded.field1.get().field1 == 10)
+    check(pktLoaded.field1.get().field2 == "subpacket")
