@@ -5,7 +5,7 @@ license     = "MIT"
 author      = "Vladimir Berezenko <qmaster2000@gmail.com>"
 
 # Dependencies
-requires "nim >= 0.20.00", "packedjson"
+requires "nim >= 0.20.00", "packedjson", "crc32 >= 0.1.1"
 
 task test, "tests":
   echo "Running stdlib json tests"
