@@ -6,6 +6,27 @@ import ../internal/types
 import ./processors/[boolean, numeric, str, datetime, enums, optional]
 export json, boolean, numeric, str, datetime, enums, optional
 
+proc load*[T: TArrayPacket](p: type[T], json: JsonNode): T {.raises:[ValueError].} =
+    mixin load
+    if json.kind != JArray:
+        raise newException(ValueError, "Wrong field type: " & $json.kind)
+    let fields: seq[string] = p.packet_fields()
+    let res = p()
+    if json.len != fields.len + 1:
+        raise newException(ValueError, "Wrong array length: " & $json.len)
+    var i: int = 0
+    load(res.id, json[i])
+    i.inc(1)
+    for k, t in res[].fieldPairs:
+        if k in fields:
+            let target: JsonNode = json[i]
+            i.inc(1)
+            when t is TPacket or t is TArrayPacket:
+                t = type(t).load(target)
+            else:
+                load(t, target)
+    result=res
+
 proc load*[T: TPacket](p: type[T], json: JsonNode): T {.raises:[ValueError].} =
     mixin load
     if json.kind != JObject:
@@ -21,13 +42,13 @@ proc load*[T: TPacket](p: type[T], json: JsonNode): T {.raises:[ValueError].} =
             let target: JsonNode = json.getOrDefault(key)
             if (target.isNil() or target.kind == JNull) and k in req:
                 raise newException(ValueError, "Required field " & k & " missing")
-            when t is TPacket:
+            when t is TPacket or t is TArrayPacket:
                 t = type(t).load(target)
             else:
                 load(t, target)
     result=res
 
-proc load*[T: TPacket](p: type[Option[T]], json: JsonNode): Option[T] {.raises:[ValueError].} =
+proc load*[T: TPacket | TArrayPacket](p: type[Option[T]], json: JsonNode): Option[T] {.raises:[ValueError].} =
     mixin load
     if json.isNil() or json.kind == JNull:
         result = none(T)
@@ -38,7 +59,7 @@ proc load*[T](to: var seq[T], json: JsonNode) {.raises:[ValueError].} =
     mixin load
     if json.kind != JArray:
         raise newException(ValueError, "Wrong field type: " & $json.kind)
-    for item in json.elems:
+    for item in json:
         var t: T
         t.load(item)
         to.add(t)
@@ -52,10 +73,28 @@ proc load*[T](to: var Option[seq[T]], json: JsonNode) {.raises:[ValueError].} =
         t.load(json)
         to = t.option
 
-proc loads*[T: TPacket](p: type[T], buffer: string): T =
+proc loads*[T: TPacket | TArrayPacket](p: type[T], buffer: string): T =
     mixin load
     let js = parseJson(string)
     return load(p, js)
+
+proc dump*[T: TArrayPacket](p: T): JsonTree =
+    mixin dump
+    result = newJArray()
+    result.add(%p.id)
+    let fields: seq[string] = p.packet_fields()
+    for k, v in p[].fieldPairs:
+        if k in fields:
+            when v is Option:
+                if v.isSome:
+                    try:
+                        result.add(v.dump())
+                    except UnpackError:
+                        discard
+                else:
+                    result.add(newJNull())
+            else:
+                result.add(v.dump())
 
 proc dump*[T: TPacket](p: T): JsonTree =
     mixin dump
@@ -82,6 +121,6 @@ proc dump*[T](t: seq[T]): JsonTree =
         o.add(item.dump())
     result = o
 
-proc dumps*[T: TPacket](p: T): string =
+proc dumps*[T: TPacket | TArrayPacket](p: T): string =
     mixin dump
     result = $p.dump()

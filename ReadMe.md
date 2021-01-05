@@ -41,9 +41,19 @@ packet Boolean:
   var booleanOptionalWithDefault*: Option[bool] = false
   var notSerialized: float
 
+arrayPacket PacketAsASequence:
+  var field1*: int
+  var field2*: string
+  var field3*: bool
+
 var booleanPacket = Boolean.init(boolean = true, booleanWithName = false)
 var jsonData = booleanPacket.dump()
 let decodedBoolean = Boolean.load(jsonData)
+
+var sequentialPacket = PacketAsASequence.init(field1 = 1, field2 = "str", field3 = false)
+var jsonData = sequentialPacket.dump()
+# will lead to a JSON array [1, "str", false]
+var decodedSequential = PacketAsASequence.load(jsonData)
 ```
 
 Plans

@@ -9,28 +9,133 @@ type
         base: string
         params: seq[NimNode]
     TVarData = ref object
-        fieldName*: NimNode
-        fieldParam*: NimNode
-        fieldParam2*: NimNode
-        fieldExported*: bool
-        fieldRequired*: bool
-        fieldAsName*: string
+        fieldName: NimNode
+        fieldParam: NimNode
+        fieldParam2: NimNode
+        fieldExported: bool
+        fieldRequired: bool
+        fieldAsName: string
 
 proc concatParams(base: string): seq[NimNode] {.compiletime.}
 proc concatBases(base: string): seq[string] {.compiletime.}
 proc generateId(name, base: string): int32 {.compiletime.}
-proc extractFromVar(n: NimNode): TVarData {.compiletime.}
+proc extractFromVar(n: NimNode, asArray: bool = false): TVarData {.compiletime.}
 proc generateRefFunct(tName, retType: NimNode, ending, fun: static string): NimNode {.compiletime.}
+proc addRequired(to: var NimNode, requiredList, typeName: NimNode) {.compiletime.}
+proc addFields(to: var NimNode, fieldList, typeName: NimNode) {.compiletime.}
+proc addMapping(to: var NimNode, mappedList, typeName: NimNode) {.compiletime.}
 var packet_cache {.compiletime, global.}: Table[string, TCacheItem]
+
+macro arrayPacket*(head, body: untyped): untyped =
+    var typeName, baseName: NimNode
+    var isExported: bool = true
+    var bnIdx: int
+    #echo head.treeRepr
+    case head.kind
+    of nnkIdent:
+        typeName = head
+    of nnkInfix:
+        if eqIdent(head[0], "*"):
+            typeName = head[1]
+            bnIdx = 2
+            isExported = true
+            baseName = head[2][1]
+        else:
+            typeName = head[1]
+            baseName = head[2]
+    else:
+        error "Invalid node: " & head.lispRepr
+
+    result = newStmtList()
+    let initIdent = nnkPostfix.newTree(ident("*"), ident("init"))
+    var fieldList = nnkBracket.newTree()
+    var requiredList = nnkBracket.newTree()
+    var mappedList = nnkTableConstr.newTree()
+    var initProcRes = nnkObjConstr.newTree(typeName)
+    var initProc = newProc(
+        name = initIdent,
+        params = @[
+            typeName, # the return type comes first
+            newIdentDefs(ident"_", newTree(nnkBracketExpr, ident"type", typeName))
+        ],
+        body = nnkStmtList.newTree(
+            nnkAsgn.newTree(ident"result", initProcRes),
+            nnkAsgn.newTree(nnkDotExpr.newTree(ident"result", ident"id"), newIntLitNode(generateId($typeName, (if not baseName.isNil: $baseName else: "")))),
+        )
+    )
+
+    var recList = newNimNode(nnkRecList)
+    var item = TCacheItem()
+    if baseName.isNil:
+        baseName = newIdentNode("TArrayPacket")
+    else:
+        var baseParams: seq[NimNode] = concatParams($baseName)
+        for param in baseParams:
+            var varData: auto = extractFromVar(param, true)
+            initProc.params.add(varData.fieldParam)
+            initProcRes.add(nnkExprColonExpr.newTree(varData.fieldName, varData.fieldName))
+            if varData.fieldExported:
+                fieldList.add(newStrLitNode($varData.fieldName))
+                requiredList.add(newStrLitNode($varData.fieldName))
+            if not (varData.fieldAsName == ""):
+                mappedList.add(nnkExprColonExpr.newTree(newStrLitNode($varData.fieldName), newStrLitNode(varData.fieldAsName)))
+        if packet_cache.hasKey($baseName):
+            item.base = $baseName
+
+    for child in body.children:
+        case child.kind:
+            of nnkVarSection:
+                for n in child.children:
+                    var varData: auto = extractFromVar(n, true)
+                    initProc.params.add(varData.fieldParam)
+                    initProcRes.add(nnkExprColonExpr.newTree(varData.fieldName, varData.fieldName))
+                    recList.add(varData.fieldParam2)
+                    item.params.add(n)
+                    if varData.fieldExported:
+                        fieldList.add(newStrLitNode($varData.fieldName))
+                        requiredList.add(newStrLitNode($varData.fieldName))
+                    if not (varData.fieldAsName == ""):
+                        mappedList.add(nnkExprColonExpr.newTree(newStrLitNode($varData.fieldName), newStrLitNode(varData.fieldAsName)))
+            else:
+                error("Not supported")
+    
+    packet_cache[$typeName] = item
+    #if isExported:
+    #    typeName = nnkPostfix.newTree(newIdentNode("*"), typeName)
+    result.add( 
+        nnkTypeSection.newTree(
+            nnkTypeDef.newTree(
+                nnkPostfix.newTree(ident("*"), typeName),
+                newEmptyNode(),
+                nnkRefTy.newTree(
+                    nnkObjectTy.newTree(
+                        newEmptyNode(),
+                        nnkOfInherit.newTree(
+                            baseName
+                        ),
+                        recList
+                    )
+                )
+            )
+        )
+    )
+    result.addRequired(requiredList, typeName)
+    result.addFields(fieldList, typeName)
+    result.add(initProc)
+    result = result.copy
+    #echo result.treerepr
+    when defined(packetDumpTree):
+        echo result.repr
 
 macro packet*(head, body: untyped): untyped =
     var typeName, baseName: NimNode
     var isExported: bool = true
     var bnIdx: int
     #echo head.treeRepr
-    if head.kind == nnkIdent:
+    case head.kind
+    of nnkIdent:
         typeName = head
-    elif head.kind == nnkInfix:
+    of nnkInfix:
         if eqIdent(head[0], "*"):
             typeName = head[1]
             bnIdx = 2
@@ -118,64 +223,9 @@ macro packet*(head, body: untyped): untyped =
             )
         )
     )
-
-    let required = nnkLetSection.newTree(
-        nnkIdentDefs.newTree(
-            newIdentNode($typeName&"required"),
-            nnkBracketExpr.newTree(
-                ident"seq",
-                ident"string"
-            ),
-            nnkPrefix.newTree(
-                ident"@",
-                requiredList
-            )
-        )
-    )
-    result.add(required)
-    result.add(generateRefFunct(typeName, nnkBracketExpr.newTree(newIdentNode("seq"), newIdentNode("string")), "required", "required_fields"))
-
-    let fields = nnkLetSection.newTree(
-        nnkIdentDefs.newTree(
-            newIdentNode($typeName&"fields"),
-            nnkBracketExpr.newTree(
-                ident"seq",
-                ident"string"
-            ),
-            nnkPrefix.newTree(
-                ident"@",
-                fieldList
-            )
-        )
-    )
-    result.add(fields)
-    result.add(generateRefFunct(typeName, nnkBracketExpr.newTree(newIdentNode("seq"), newIdentNode("string")), "fields", "packet_fields"))
-
-    let mapped = (if mappedList.len() > 0: nnkDotExpr.newTree(
-        mappedList,
-        newIdentNode("newTable")
-    ) else:
-        nnkCall.newTree(
-            nnkBracketExpr.newTree(
-                newIdentNode("TableRef"),
-                newIdentNode("string"),
-                newIdentNode("string")
-            )
-        )
-    )
-    let mapping = nnkLetSection.newTree(
-        nnkIdentDefs.newTree(
-            newIdentNode($typeName&"mapping"),
-            nnkBracketExpr.newTree(
-                newIdentNode("TableRef"),
-                newIdentNode("string"),
-                newIdentNode("string")
-            ),
-            mapped
-        ),
-    )
-    result.add(mapping)
-    result.add(generateRefFunct(typeName, nnkBracketExpr.newTree(newIdentNode("TableRef"), newIdentNode("string"), newIdentNode("string")), "mapping", "mapping"))
+    result.addRequired(requiredList, typeName)
+    result.addFields(fieldList, typeName)
+    result.addMapping(mappedList, typeName)
 
     result.add(initProc)
     result = result.copy
@@ -212,7 +262,7 @@ proc generateId(name, base: string): int32 {.compiletime.} =
         id = int32(packet_id)
     result = id
 
-proc extractFromVar(n: NimNode): TVarData {.compiletime.}=
+proc extractFromVar(n: NimNode, asArray: bool = false): TVarData {.compiletime.}=
     var fieldName, fieldType, fieldDefault: NimNode
     var fieldExported: bool = false
     var fieldRequired: bool = true
@@ -238,7 +288,10 @@ proc extractFromVar(n: NimNode): TVarData {.compiletime.}=
             error "Node kind not supported: " & n.treeRepr
     fieldType = n[1]
     if fieldType.kind == nnkBracketExpr and eqIdent(fieldType[0], "Option"):
-        fieldRequired = false
+        if asArray:
+            error "Optional fields not possible in array packets"
+        else:
+            fieldRequired = false
     if fieldRequired:
         fieldDefault = (if n[2].kind == nnkNilLit: newEmptyNode() else: n[2])
     else:
@@ -316,6 +369,67 @@ proc generateRefFunct(tName, retType: NimNode, ending, fun: static string): NimN
             nnkStmtList.newTree(fName)
         )
     )
+
+proc addRequired(to: var NimNode, requiredList, typeName: NimNode) {.compiletime.} =
+    let required = nnkLetSection.newTree(
+        nnkIdentDefs.newTree(
+            newIdentNode($typeName&"required"),
+            nnkBracketExpr.newTree(
+                ident"seq",
+                ident"string"
+            ),
+            nnkPrefix.newTree(
+                ident"@",
+                requiredList
+            )
+        )
+    )
+    to.add(required)
+    to.add(generateRefFunct(typeName, nnkBracketExpr.newTree(newIdentNode("seq"), newIdentNode("string")), "required", "required_fields"))
+
+proc addFields(to: var NimNode, fieldList, typeName: NimNode) {.compiletime.} =
+    let fields = nnkLetSection.newTree(
+        nnkIdentDefs.newTree(
+            newIdentNode($typeName&"fields"),
+            nnkBracketExpr.newTree(
+                ident"seq",
+                ident"string"
+            ),
+            nnkPrefix.newTree(
+                ident"@",
+                fieldList
+            )
+        )
+    )
+    to.add(fields)
+    to.add(generateRefFunct(typeName, nnkBracketExpr.newTree(newIdentNode("seq"), newIdentNode("string")), "fields", "packet_fields"))
+
+proc addMapping(to: var NimNode, mappedList, typeName: NimNode) {.compiletime.} =
+    let mapped = (if mappedList.len() > 0: nnkDotExpr.newTree(
+        mappedList,
+        newIdentNode("newTable")
+    ) else:
+        nnkCall.newTree(
+            nnkBracketExpr.newTree(
+                newIdentNode("TableRef"),
+                newIdentNode("string"),
+                newIdentNode("string")
+            )
+        )
+    )
+    let mapping = nnkLetSection.newTree(
+        nnkIdentDefs.newTree(
+            newIdentNode($typeName&"mapping"),
+            nnkBracketExpr.newTree(
+                newIdentNode("TableRef"),
+                newIdentNode("string"),
+                newIdentNode("string")
+            ),
+            mapped
+        ),
+    )
+    to.add(mapping)
+    to.add(generateRefFunct(typeName, nnkBracketExpr.newTree(newIdentNode("TableRef"), newIdentNode("string"), newIdentNode("string")), "mapping", "mapping"))
 
 #[
 template init*[T: TPacket](val: var T, args: varargs[typed]) =

@@ -4,10 +4,10 @@ import strutils
 import tables
 import ./internal/types
 import ./internal/packet
-export TPacket, as_name, packet
+export TPacket, TArrayPacket, as_name, packet, arrayPacket
 
 proc indent(s: var string, i: int)
-proc pretty*[T: TPacket](p: T, ci=1): string =
+proc pretty*[T: TPacket | TArrayPacket](p: T, ci=1): string =
     var str = "packet " & $type(T)
     let req: seq[string] = p.required_fields()
     let fields: seq[string] = p.packet_fields()
@@ -24,7 +24,7 @@ proc pretty*[T: TPacket](p: T, ci=1): string =
                 str.add("field " & k & " = " & $v & (if k in req: " required" else: ""))
     result=str
 
-proc `$`*[T: TPacket](p: T): string =
+proc `$`*[T: TPacket | TArrayPacket](p: T): string =
     result = p.pretty()
 
 #--------------------------------------------------------------------------#

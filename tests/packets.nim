@@ -49,7 +49,11 @@ packet PacketWithSubpacket:
   var field2*: SimplePacketWithDefault
 
 packet PacketWithOptionalSubpacket:
-    var field1*: Option[SimplePacketWithDefault]
+  var field1*: Option[SimplePacketWithDefault]
+
+arrayPacket SimpleArrayPacket:
+  var field1*: int
+  var field2*: float
 
 suite "Packets":
   setup:
@@ -214,3 +218,19 @@ suite "Packets":
     check(pktLoaded.field1.get() is SimplePacketWithDefault)
     check(pktLoaded.field1.get().field1 == 10)
     check(pktLoaded.field1.get().field2 == "subpacket")
+
+suite "Array Packets":
+  setup:
+    discard
+
+  test "Simple ArrayPacket":
+    let pkt = SimpleArrayPacket.init(field1 = 1, field2 = 2.0)
+    check(pkt.field1 == 1)
+    check(pkt.field2 == 2.0)
+    let js = pkt.dump()
+    echo "Resulted JSON: ", $js
+    check(js.kind == JArray)
+    check(js.len == 3)
+    let pktLoaded = SimpleArrayPacket.load(js)
+    check(pktLoaded.field1 == 1)
+    check(pktLoaded.field2 == 2.0)
