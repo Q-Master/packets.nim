@@ -230,7 +230,10 @@ suite "Array Packets":
     let js = pkt.dump()
     echo "Resulted JSON: ", $js
     check(js.kind == JArray)
-    check(js.len == 3)
+    when not defined(disablePacketIDs):
+      check(js.len == 3)
+    else:
+      check(js.len == 2)
     let pktLoaded = SimpleArrayPacket.load(js)
     check(pktLoaded.field1 == 1)
     check(pktLoaded.field2 == 2.0)

@@ -52,16 +52,22 @@ macro arrayPacket*(head, body: untyped): untyped =
     var requiredList = nnkBracket.newTree()
     var mappedList = nnkTableConstr.newTree()
     var initProcRes = nnkObjConstr.newTree(typeName)
+    when not defined(disablePacketIDs):
+        let initBody = nnkStmtList.newTree(
+            nnkAsgn.newTree(ident"result", initProcRes),
+            nnkAsgn.newTree(nnkDotExpr.newTree(ident"result", ident"id"), newIntLitNode(generateId($typeName, (if not baseName.isNil: $baseName else: ""))))
+        )
+    else:
+        let initBody = nnkStmtList.newTree(
+            nnkAsgn.newTree(ident"result", initProcRes)
+        )
     var initProc = newProc(
         name = initIdent,
         params = @[
             typeName, # the return type comes first
             newIdentDefs(ident"_", newTree(nnkBracketExpr, ident"type", typeName))
         ],
-        body = nnkStmtList.newTree(
-            nnkAsgn.newTree(ident"result", initProcRes),
-            nnkAsgn.newTree(nnkDotExpr.newTree(ident"result", ident"id"), newIntLitNode(generateId($typeName, (if not baseName.isNil: $baseName else: "")))),
-        )
+        body = initBody
     )
 
     var recList = newNimNode(nnkRecList)
@@ -153,16 +159,22 @@ macro packet*(head, body: untyped): untyped =
     var requiredList = nnkBracket.newTree()
     var mappedList = nnkTableConstr.newTree()
     var initProcRes = nnkObjConstr.newTree(typeName)
+    when not defined(disablePacketIDs):
+        let initBody = nnkStmtList.newTree(
+            nnkAsgn.newTree(ident"result", initProcRes),
+            nnkAsgn.newTree(nnkDotExpr.newTree(ident"result", ident"id"), newIntLitNode(generateId($typeName, (if not baseName.isNil: $baseName else: ""))))
+        )
+    else:
+        let initBody = nnkStmtList.newTree(
+            nnkAsgn.newTree(ident"result", initProcRes)
+        )
     var initProc = newProc(
         name = initIdent,
         params = @[
             typeName, # the return type comes first
             newIdentDefs(ident"_", newTree(nnkBracketExpr, ident"type", typeName))
         ],
-        body = nnkStmtList.newTree(
-            nnkAsgn.newTree(ident"result", initProcRes),
-            nnkAsgn.newTree(nnkDotExpr.newTree(ident"result", ident"id"), newIntLitNode(generateId($typeName, (if not baseName.isNil: $baseName else: "")))),
-        )
+        body = initBody
     )
 
     var recList = newNimNode(nnkRecList)

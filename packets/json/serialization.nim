@@ -12,11 +12,12 @@ proc load*[T: TArrayPacket](p: type[T], json: JsonNode): T {.raises:[ValueError]
         raise newException(ValueError, "Wrong field type: " & $json.kind)
     let fields: seq[string] = p.packet_fields()
     let res = p()
-    if json.len != fields.len + 1:
-        raise newException(ValueError, "Wrong array length: " & $json.len)
     var i: int = 0
-    load(res.id, json[i])
-    i.inc(1)
+    when not defined(disablePacketIDs):
+        load(res.id, json[i])
+        i.inc(1)
+    if json.len != fields.len + i:
+        raise newException(ValueError, "Wrong array length: " & $json.len)
     for k, t in res[].fieldPairs:
         if k in fields:
             let target: JsonNode = json[i]
@@ -35,7 +36,8 @@ proc load*[T: TPacket](p: type[T], json: JsonNode): T {.raises:[ValueError].} =
     let fields: seq[string] = p.packet_fields()
     let mapping: TableRef[string, string] = p.mapping()
     let res = p()
-    load(res.id, json["id"])
+    when not defined(disablePacketIDs):
+        load(res.id, json["id"])
     for k, t in res[].fieldPairs:
         if k in fields:
             let key = mapping.getOrDefault(k, k)
@@ -81,7 +83,8 @@ proc loads*[T: TPacket | TArrayPacket](p: type[T], buffer: string): T =
 proc dump*[T: TArrayPacket](p: T): JsonTree =
     mixin dump
     result = newJArray()
-    result.add(%p.id)
+    when not defined(disablePacketIDs):
+        result.add(%p.id)
     let fields: seq[string] = p.packet_fields()
     for k, v in p[].fieldPairs:
         if k in fields:
@@ -99,7 +102,8 @@ proc dump*[T: TArrayPacket](p: T): JsonTree =
 proc dump*[T: TPacket](p: T): JsonTree =
     mixin dump
     result = newJObject()
-    result["id"]= %p.id
+    when not defined(disablePacketIDs):
+        result["id"]= %p.id
     let fields: seq[string] = p.packet_fields()
     let mapping: TableRef[string, string] = p.mapping()
     for k, v in p[].fieldPairs:

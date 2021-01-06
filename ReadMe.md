@@ -24,9 +24,12 @@ $ nimble install https://github.com/Q-Master/packets.nim.git
 Usage
 ---
 Mostly usage examples could be seen in tests directory.
-The building is by default with std json, as benchmarks showed it is faster 3 times than
-packedjson.
+The building is by default with std json, as benchmarks showed it is faster 3 times than packedjson.
+
 `-d:usePackedJson` enables packedjson.
+
+`-d:disablePacketIDs` disables auto packet ID generation (disables additional field `id` in packets and disables its serialization/deserialization)
+
 ```nim
 import tables
 import options
