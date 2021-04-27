@@ -7,4 +7,5 @@ Contribute.md
 *.exe
 *.cfg
 *.out
-tests/benchmark
+tests/*
+!tests/*.nim[s]
