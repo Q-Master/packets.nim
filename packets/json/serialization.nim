@@ -92,7 +92,7 @@ proc dump*[T: TArrayPacket](p: T): JsonTree =
                 if v.isSome:
                     try:
                         result.add(v.dump())
-                    except UnpackError:
+                    except UnpackDefect:
                         discard
                 else:
                     result.add(newJNull())
@@ -113,7 +113,7 @@ proc dump*[T: TPacket](p: T): JsonTree =
                 if v.isSome:
                     try:
                         result[key] = v.dump()
-                    except UnpackError:
+                    except UnpackDefect:
                         discard
             else:
                 result[key] = v.dump()

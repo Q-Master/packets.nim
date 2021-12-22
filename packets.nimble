@@ -1,11 +1,11 @@
 # Package
 description = "Pure Nim declarative packets system for serializing/deserializing"
-version     = "0.4.0"
+version     = "0.4.1"
 license     = "MIT"
 author      = "Vladimir Berezenko <qmaster2000@gmail.com>"
 
 # Dependencies
-requires "nim >= 0.20.00", "packedjson", "crc32 >= 0.1.1"
+requires "nim >= 1.4.00", "packedjson", "crc32 >= 0.1.1"
 
 task test, "tests":
   echo "Running stdlib json tests"
