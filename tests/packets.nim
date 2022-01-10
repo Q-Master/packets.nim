@@ -55,6 +55,10 @@ arrayPacket SimpleArrayPacket:
   var field1*: int
   var field2*: float
 
+packet PacketCyclic:
+  var field1*: Option[PacketCyclic]
+  var field2*: int
+
 suite "Packets":
   setup:
     discard
@@ -228,7 +232,7 @@ suite "Array Packets":
     check(pkt.field1 == 1)
     check(pkt.field2 == 2.0)
     let js = pkt.dump()
-    echo "Resulted JSON: ", $js
+    #echo "Resulted JSON: ", $js
     check(js.kind == JArray)
     when not defined(disablePacketIDs):
       check(js.len == 3)
@@ -237,3 +241,18 @@ suite "Array Packets":
     let pktLoaded = SimpleArrayPacket.load(js)
     check(pktLoaded.field1 == 1)
     check(pktLoaded.field2 == 2.0)
+
+suite "Cyclic packets":
+  setup:
+    discard
+
+  test "Cyclic packet":
+    let pkt = PacketCyclic.init(field1 = PacketCyclic.none, field2 = 2)
+    let pkt2 = PacketCyclic.init(field1 = pkt.option, field2 = 1)
+    let js = pkt2.dump()
+    #echo "Resulted JSON: ", $js
+    let pktLoaded = PacketCyclic.load(js)
+    check(pktLoaded.field1.get() is PacketCyclic)
+    check(pktLoaded.field2 == 1)
+    check(pktLoaded.field1.get().field1.isNone())
+    check(pktLoaded.field1.get().field2 == 2)
