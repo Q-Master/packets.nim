@@ -1,8 +1,8 @@
 import macros
 import tables
-import crc32
 import sequtils
 import strutils
+import ./util/crc32
 
 type
     TCacheItem = object

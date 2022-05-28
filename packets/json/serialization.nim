@@ -77,7 +77,7 @@ proc load*[T](to: var Option[seq[T]], json: JsonNode) {.raises:[ValueError].} =
 
 proc loads*[T: TPacket | TArrayPacket](p: type[T], buffer: string): T =
     mixin load
-    let js = parseJson(string)
+    let js = parseJson(buffer)
     return load(p, js)
 
 proc dump*[T: TArrayPacket](p: T): JsonTree =
