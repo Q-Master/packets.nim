@@ -43,6 +43,7 @@ macro arrayPacket*(head, body: untyped): untyped =
         else:
             typeName = head[1]
             baseName = head[2]
+            isExported = false
     else:
         error "Invalid node: " & head.lispRepr
 
@@ -154,27 +155,35 @@ macro packet*(head, body: untyped): untyped =
         error "Invalid node: " & head.lispRepr
 
     result = newStmtList()
-    let initIdent = nnkPostfix.newTree(ident("*"), ident("init"))
     var fieldList = nnkBracket.newTree()
     var requiredList = nnkBracket.newTree()
     var mappedList = nnkTableConstr.newTree()
     var initProcRes = nnkObjConstr.newTree(typeName)
+    var initProcResFiltered = nnkObjConstr.newTree(typeName)
+    var initBody = nnkStmtList.newTree(nnkAsgn.newTree(ident"result", initProcRes))
+    var initBodyFiltered = nnkStmtList.newTree(nnkAsgn.newTree(ident"result", initProcResFiltered))
     when not defined(disablePacketIDs):
-        let initBody = nnkStmtList.newTree(
-            nnkAsgn.newTree(ident"result", initProcRes),
+        initBody.add(
             nnkAsgn.newTree(nnkDotExpr.newTree(ident"result", ident"id"), newIntLitNode(generateId($typeName, (if not baseName.isNil: $baseName else: ""))))
         )
-    else:
-        let initBody = nnkStmtList.newTree(
-            nnkAsgn.newTree(ident"result", initProcRes)
+        initBodyFiltered.add(
+            nnkAsgn.newTree(nnkDotExpr.newTree(ident"result", ident"id"), newIntLitNode(generateId($typeName, (if not baseName.isNil: $baseName else: ""))))
         )
     var initProc = newProc(
-        name = initIdent,
+        name = nnkPostfix.newTree(ident("*"), ident("init")),
         params = @[
             typeName, # the return type comes first
             newIdentDefs(ident"_", newTree(nnkBracketExpr, ident"type", typeName))
         ],
         body = initBody
+    )
+    var initProcFiltered = newProc(
+        name = nnkPostfix.newTree(ident("*"), ident("init")),
+        params = @[
+            typeName, # the return type comes first
+            newIdentDefs(ident"_", newTree(nnkBracketExpr, ident"type", typeName))
+        ],
+        body = initBodyFiltered
     )
 
     var recList = newNimNode(nnkRecList)
@@ -189,8 +198,11 @@ macro packet*(head, body: untyped): untyped =
             initProc.params.add(varData.fieldParam)
             initProcRes.add(nnkExprColonExpr.newTree(varData.fieldName, varData.fieldName))
             if varData.fieldExported:
+                initProcFiltered.params.add(varData.fieldParam)
+                initProcResFiltered.add(nnkExprColonExpr.newTree(varData.fieldName, varData.fieldName))
+            if varData.fieldExported:
                 fieldList.add(newStrLitNode($varData.fieldName))
-            if varData.fieldRequired:
+            if varData.fieldRequired and varData.fieldExported:
                 requiredList.add(newStrLitNode($varData.fieldName))
             if not (varData.fieldAsName == ""):
                 mappedList.add(nnkExprColonExpr.newTree(newStrLitNode($varData.fieldName), newStrLitNode(varData.fieldAsName)))
@@ -204,6 +216,9 @@ macro packet*(head, body: untyped): untyped =
                     var varData: auto = extractFromVar(n)
                     initProc.params.add(varData.fieldParam)
                     initProcRes.add(nnkExprColonExpr.newTree(varData.fieldName, varData.fieldName))
+                    if varData.fieldExported:
+                        initProcFiltered.params.add(varData.fieldParam)
+                        initProcResFiltered.add(nnkExprColonExpr.newTree(varData.fieldName, varData.fieldName))
                     recList.add(varData.fieldParam2)
                     item.params.add(n)
                     if varData.fieldExported:
@@ -240,6 +255,8 @@ macro packet*(head, body: untyped): untyped =
     result.addMapping(mappedList, typeName)
 
     result.add(initProc)
+    if initProcRes.len != initProcResFiltered.len:
+        result.add(initProcFiltered)
     result = result.copy
     #echo result.treerepr
     when defined(packetDumpTree):
