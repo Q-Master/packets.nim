@@ -63,7 +63,10 @@ proc load*[T](to: var seq[T], json: JsonNode) {.raises:[ValueError].} =
         raise newException(ValueError, "Wrong field type: " & $json.kind)
     for item in json:
         var t: T
-        t.load(item)
+        when t is TPacket or t is TArrayPacket:
+            t = type(t).load(item)
+        else:
+            load(t, item)
         to.add(t)
 
 proc load*[T](to: var Option[seq[T]], json: JsonNode) {.raises:[ValueError].} =
