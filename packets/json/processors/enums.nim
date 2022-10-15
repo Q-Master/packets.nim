@@ -1,9 +1,15 @@
-import ../json
+import std/strutils
+import ../context
 
-proc load*[T: enum](to: var T, json: JsonNode) {.raises:[ValueError].} =
-    if json.kind != JInt:
-        raise newException(ValueError, "Wrong field type: " & $json.kind)
-    to = T(json.getBiggestInt())
+# ------------------- Load
 
-proc dump*[T: enum](en: T): JsonNode =
-    result = newJInt(ord(en))
+proc load*[T: enum](ctx: TPacketDataSource, t: typedesc[T]): T =
+  if ctx.toCtx.parser.tok != tkInt:
+    raise newException(ValueError, "Wrong field type: " & $ctx.toCtx.parser.tok)
+  result = T(parseBiggestInt(ctx.toCtx.parser.a))
+  discard ctx.toCtx.parser.getTok()
+
+# ------------------- Dump
+
+proc dump*[T: enum](en: T): string =
+  result = $(ord(en).int)

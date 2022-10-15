@@ -1,10 +1,7 @@
-import json
-import options
-import strutils
-import tables
+import std/[options, strutils, tables, sets, macros]
 import ./internal/types
 import ./internal/packet
-export TPacket, TArrayPacket, as_name, packet, arrayPacket
+export TPacket, TArrayPacket, TPacketDataSource, TPacketFieldSetFunc, as_name, packet, arrayPacket, tables, sets, macros
 
 proc indent(s: var string, i: int)
 proc pretty*[T: TPacket | TArrayPacket](p: T, ci=1): string =
