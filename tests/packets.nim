@@ -64,7 +64,7 @@ suite "Packets":
     let nowTime = initTime(getTime().toUnix, 0)
     var nowDate = now()
     nowDate = nowDate - initDuration(nanoseconds=nowDate.nanosecond)
-    echo nowDate.nanosecond
+    #echo nowDate.nanosecond
     var pkt = SimplePacket.new(
       field1 = 10,
       field2 = 862.0,

@@ -15,5 +15,5 @@ let tJson = """{"user_name":"Васисуалий","login":"vasasuali","password
 
 var t = now()
 for _ in 0..1_000_000:
-  var f {.used.} = tJson.loads(Test1)
+  var f {.used.} = Test1.loads(tJson)
 echo "Nim packets " &  $(now()-t)

@@ -1,4 +1,5 @@
 nimcache
+.nimcache
 profile_results.txt
 *.save
 Contribute.md

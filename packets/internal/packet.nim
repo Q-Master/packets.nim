@@ -92,7 +92,8 @@ macro arrayPacket*(head, body: untyped): untyped =
       typeName, # the return type comes first
       newIdentDefs(ident"_", newTree(nnkBracketExpr, ident"type", typeName))
     ],
-    body = initBody
+    body = initBody,
+    pragmas = nnkPragma.newTree(ident "noinit")
   )
   var initProcWithoutParams = newProc(
     name = initIdent,
@@ -100,7 +101,8 @@ macro arrayPacket*(head, body: untyped): untyped =
       typeName, # the return type comes first
       newIdentDefs(ident"_", newTree(nnkBracketExpr, ident"type", typeName))
     ],
-    body = initBodyWithoutParamsWithDefaults
+    body = initBodyWithoutParamsWithDefaults,
+    pragmas = nnkPragma.newTree(ident "noinit")
   )
 
   var recList = newNimNode(nnkRecList)
@@ -238,7 +240,8 @@ macro packet*(head, body: untyped): untyped =
       typeName, # the return type comes first
       newIdentDefs(ident"_", newTree(nnkBracketExpr, ident"type", typeName))
     ],
-    body = initBody
+    body = initBody,
+    pragmas = nnkPragma.newTree(ident "noinit")
   )
   var initProcWithoutParams = newProc(
     name = initIdent,
@@ -246,7 +249,8 @@ macro packet*(head, body: untyped): untyped =
       typeName, # the return type comes first
       newIdentDefs(ident"_", newTree(nnkBracketExpr, ident"type", typeName))
     ],
-    body = initBodyWithoutParamsWithDefaults
+    body = initBodyWithoutParamsWithDefaults,
+    pragmas = nnkPragma.newTree(ident "noinit")
   )
   var recList = newNimNode(nnkRecList)
   var item = TCacheItem()
