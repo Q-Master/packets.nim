@@ -18,13 +18,15 @@ proc load*[T: TPacket](ctx: TPacketDataSource, p: typedesc[T]): T =
       let loader = deserMapping.getOrDefault(currKey, nil)
       discard ctx.toCtx.parser.getTok()
       ctx.toCtx.parser.eat(tkColon)
-      if not loader.isNil:
-        loader(cast[TPacket](result), cast[TPacketDataSource](ctx))
+      if loader.isNil:
+        ctx.skip()
+      else:
+        loader(cast[TPacket](result), ctx)
       if ctx.toCtx.parser.tok != tkComma:
         break
       discard ctx.toCtx.parser.getTok() #skipping "," token
     if req.len > 0:
-      raise newException(ValueError, "Required field(s) " & $req & " missing")
+      raise newException(ValueError, "Required field(s) " & $req & " missing (" & $p & ")")
     eat(ctx.toCtx.parser, tkCurlyRi)
   else:
     raise newException(ValueError, "Not an object")
