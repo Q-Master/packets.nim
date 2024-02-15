@@ -6,8 +6,8 @@ export TPacket, TArrayPacket, TPacketDataSource, TPacketFieldSetFunc, as_name, p
 proc indent(s: var string, i: int)
 proc pretty*[T: TPacket | TArrayPacket](p: T, ci=1): string =
     var str = "packet " & $type(T)
-    let req: seq[string] = p.required_fields()
-    let fields: seq[string] = p.packet_fields()
+    let req: HashSet[string] = p.requiredFields()
+    let fields: seq[string] = p.packetFields()
     str.add("\n")
     indent(str, ci)
     str.add("ID " & $p.id)
