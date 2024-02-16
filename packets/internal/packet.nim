@@ -74,7 +74,7 @@ macro arrayPacket*(head, body: untyped): untyped =
   var internalStmts = newStmtList()
   var forMacro = generateForMacroHeader(typeName, internalStmts)
 
-  when not defined(disablePacketIDs):
+  when defined(enablePacketIDs):
     initProcRes.add(
       nnkExprColonExpr.newTree(idIdent, newIntLitNode(generateId($typeName, (if not baseName.isNil: $baseName else: ""))))
     )
@@ -222,7 +222,7 @@ macro packet*(head, body: untyped): untyped =
   var internalStmts = newStmtList()
   var forMacro = generateForMacroHeader(typeName, internalStmts)
 
-  when not defined(disablePacketIDs):
+  when defined(enablePacketIDs):
     initProcRes.add(
       nnkExprColonExpr.newTree(idIdent, newIntLitNode(generateId($typeName, (if not baseName.isNil: $baseName else: ""))))
     )
@@ -389,7 +389,7 @@ proc extractFromVar(n: NimNode, asArray: bool = false): TVarData {.compiletime.}
     else:
       fieldName = n[0][0]
     for p in n[0][1].children:
-      if p.kind == nnkExprColonExpr and eqIdent(p[0], "as_name"):
+      if p.kind == nnkExprColonExpr and eqIdent(p[0], "asName"):
         fieldAsName = $p[1]
   of nnkIdent:
     fieldName = n[0]

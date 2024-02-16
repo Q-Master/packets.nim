@@ -77,7 +77,7 @@ proc dump*[T: TArrayPacket](p: T): string =
   result = "["
   let fields = p.packetFields()
   var first: bool = true
-  when not defined(disablePacketIDs):
+  when defined(enablePacketIDs):
     first = false
     result.add(p.id.dump())
   for k,v in p[].fieldPairs:

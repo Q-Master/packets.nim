@@ -28,7 +28,7 @@ The building is by default with std json, as benchmarks showed it is faster 3 ti
 
 `-d:usePackedJson` enables packedjson.
 
-`-d:disablePacketIDs` disables auto packet ID generation (disables additional field `id` in packets and disables its serialization/deserialization)
+`-d:enablePacketIDs` enables auto packet ID generation (enables additional field `id` in packets and enables its serialization/deserialization)
 
 ```nim
 import tables

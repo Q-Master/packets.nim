@@ -209,7 +209,7 @@ suite "Array Packets":
     check(pkt.field2 == 2.0)
     let js = pkt.dumps()
     #echo "Resulted JSON: ", js
-    when not defined(disablePacketIDs):
+    when defined(enablePacketIDs):
       check(js.len == 19)
     else:
       check js == "[1,2.0]"
@@ -217,6 +217,23 @@ suite "Array Packets":
     let pktLoaded = SimpleArrayPacket.loads(js)
     check(pktLoaded.field1 == 1)
     check(pktLoaded.field2 == 2.0)
+
+suite "Seq of packets":
+  setup:
+    discard
+
+  test "Seq of packets":
+    var js: string
+    when defined(enablePacketIDs):
+      js = "[{\"id\": -135810012, \"field1\": 1, \"field2\": \"a\"}, {\"id\": -135810012, \"field1\": 2, \"field2\": \"b\"}]"
+    else:
+      js = "[{\"id\": -135810012, \"field1\": 1, \"field2\": \"a\"}, {\"id\": -135810012, \"field1\": 2, \"field2\": \"b\"}]"
+    let pkt = seq[SimplePacketWithDefault].loads(js)
+    check(pkt.len == 2)
+    check(pkt[0].field1 == 1)
+    check(pkt[1].field1 == 2)
+    let pktd {.used.}= pkt.dumps()
+
 
 #[
 # Produces some unknown error, so disabled right now
