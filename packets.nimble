@@ -1,6 +1,6 @@
 # Package
 description = "Pure Nim declarative packets system for serializing/deserializing"
-version     = "0.8.1"
+version     = "0.8.2"
 license     = "MIT"
 author      = "Vladimir Berezenko <qmaster2000@gmail.com>"
 

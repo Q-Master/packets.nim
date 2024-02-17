@@ -13,6 +13,8 @@ proc load*[T: TPacket](ctx: TPacketDataSource, t: typedesc[Option[T]]): Option[T
       result = ctx.load(T).option
     except ValueError:
       result = none(T)
+      discard ctx.toCtx.parser.getTok()
+
 
 
 proc load*[T](ctx: TPacketDataSource, t: typedesc[Option[T]]): Option[T] =
