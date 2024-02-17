@@ -3,6 +3,18 @@ import ../context
 
 # ------------------- Load
 
+proc load*[T: TPacket](ctx: TPacketDataSource, t: typedesc[Option[T]]): Option[T] =
+  mixin load
+  if ctx.toCtx.parser.tok == tkNull:
+    result = none(T)
+    discard ctx.toCtx.parser.getTok()
+  else:
+    try:
+      result = ctx.load(T).option
+    except ValueError:
+      result = none(T)
+
+
 proc load*[T](ctx: TPacketDataSource, t: typedesc[Option[T]]): Option[T] =
   mixin load
   if ctx.toCtx.parser.tok == tkNull:
