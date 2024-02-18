@@ -1,9 +1,9 @@
 import std/[streams]
-import ./processors/[booleans, numerics, strs, datetimes, enums, optionals, seqs, subpackets]
+import ./processors/[booleans, numerics, strs, datetimes, enums, optionals, seqs, subpackets, tables]
 import ./context
 import ../internal/types
 
-export parsejson, booleans, numerics, strs, datetimes, enums, optionals, seqs, subpackets
+export parsejson, booleans, numerics, strs, datetimes, enums, optionals, seqs, subpackets, tables
 
 # ------------------- Load
 

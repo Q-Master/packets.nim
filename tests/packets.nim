@@ -56,6 +56,10 @@ packet PacketCyclic:
   var field1*: Option[PacketCyclic]
   var field2*: int
 
+packet PacketWithTable:
+  var field1*: int
+  var field2*: Table[string, int]
+
 suite "Packets":
   setup:
     discard
@@ -227,13 +231,26 @@ suite "Seq of packets":
     when defined(enablePacketIDs):
       js = "[{\"id\": -135810012, \"field1\": 1, \"field2\": \"a\"}, {\"id\": -135810012, \"field1\": 2, \"field2\": \"b\"}]"
     else:
-      js = "[{\"id\": -135810012, \"field1\": 1, \"field2\": \"a\"}, {\"id\": -135810012, \"field1\": 2, \"field2\": \"b\"}]"
+      js = "[{\"field1\": 1, \"field2\": \"a\"}, {\"field1\": 2, \"field2\": \"b\"}]"
     let pkt = seq[SimplePacketWithDefault].loads(js)
     check(pkt.len == 2)
     check(pkt[0].field1 == 1)
     check(pkt[1].field1 == 2)
     let pktd {.used.}= pkt.dumps()
 
+
+suite "Packet with table":
+  setup:
+    discard
+
+  test "Packet with table":
+    var js: string
+    when defined(enablePacketIDs):
+      js = "{\"id\": -2135839261, \"field1\": 1, \"field2\": {\"a\": 1}}"
+    else:
+      js = "{\"field1\": 1, \"field2\": {\"a\": 1}}"
+    let pkt = PacketWithTable.loads(js)
+    check(pkt.field2["a"] == 1)
 
 #[
 # Produces some unknown error, so disabled right now

@@ -17,9 +17,9 @@ proc pretty*[T: TPacket | TArrayPacket](p: T, ci=1): string =
       str.add("\n")
       indent(str, ci)
       when v is TPacket:
-        str.add("field " & k & " = " & v.pretty(ci=ci+1) & (if k in req: " required" else: ""))
+        str.add(k & " = " & v.pretty(ci=ci+1))
       else:
-        str.add("field " & k & " = " & $v & (if k in req: " required" else: ""))
+        str.add(k & " = " & $v)
   result=str
 
 proc `$`*[T: TPacket | TArrayPacket](p: T): string =
