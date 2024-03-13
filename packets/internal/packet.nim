@@ -95,10 +95,9 @@ proc createType(
           allFields.add((fieldNode[1], trueElem[1], $fieldNode[1]))
           allFieldsHash.incl($fieldNode[1])
         else:
-          # adding only to all fields
+          # adding only to all fieldsHash
           if $fieldNode in allFieldsHash:
             error("Redefinition of field " & $fieldNode, trueElem)
-          allFields.add((fieldNode, trueElem[1], $fieldNode))
           allFieldsHash.incl($trueElem[0])
       of nnkPragmaExpr:
         # added some pragmas
@@ -151,12 +150,10 @@ proc createLoaderForField(name: string, field, fieldType: NimNode): (NimNode, Ni
   let nameIdent = ident(name)
   let sIdent = ident "s"
   let pIdent = ident "p"
-  let destIdent = ident "dest"
   let loader = quote do:
     proc `fieldLoaderIdent`(`pIdent`: var TPacket, `sIdent`: var TPacketDataSource)=
       mixin load
-      var `destIdent` = `nameIdent`(`pIdent`)
-      `destIdent`.`field` = s.load(`fieldType`)
+      `nameIdent`(`pIdent`).`field` = s.load(`fieldType`)
   result = (fieldLoaderIdent, loader)
 
 
@@ -219,8 +216,47 @@ proc createDeserData(name: string, fields: openArray[(NimNode, NimNode, string)]
   result.add(
     quote do:
       proc requiredFields(_: typedesc[`nameIdent`]): auto = `requiredName`
+      proc requiredFields(_: `nameIdent`): auto = `requiredName`
   )
-
+  let mappingName = ident(normalName & "Mapping")
+  var mappingList: NimNode = nnkTableConstr.newTree()
+  for (fident, _, fname) in fields:
+    if $fident != fname:
+      mappingList.add(
+        nnkExprColonExpr.newTree(
+          newStrLitNode($fident),
+          newStrLitNode(fname)
+        )
+      )
+  if mappingList.len > 0:
+    result.add(
+      nnkConstSection.newTree(
+        nnkConstDef.newTree(
+          mappingName,
+          nnkBracketExpr.newTree(
+            ident "Table",
+            ident "string",
+            ident "string"
+          ),
+          nnkCall.newTree(
+            nnkDotExpr.newTree(
+              mappingList,
+              ident "toTable"
+            )
+          )
+        )
+      )
+    )
+  else:
+    result.add(
+      quote do:
+        const `mappingName`: Table[string, string] = initTable[string, string]()
+    )
+  result.add(
+    quote do:
+      proc mapping(_: typedesc[`nameIdent`]): auto = `mappingName`
+      proc mapping(_: `nameIdent`): auto = `mappingName`
+  )
 
 
 macro packet*(head, body: untyped): untyped =
@@ -264,5 +300,3 @@ macro packet*(head, body: untyped): untyped =
   result.add(baseFunctions)
   let deserData = createDeserData($packetname, allFields, requiredFields)
   result.add(deserData)
-
-  echo result.repr

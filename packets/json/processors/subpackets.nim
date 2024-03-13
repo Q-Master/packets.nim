@@ -15,7 +15,6 @@ proc load*[T: TPacket](ctx: var TPacketDataSource, p: typedesc[T]): T =
         raise newException(ValueError, "Key must be string")
       let currKey = ctx.toCtx.parser.a
       req.excl(currKey) # mapped by default by a generator
-      echo "!! ", currKey
       let loader = deserMapping.getOrDefault(currKey, nil)
       discard ctx.toCtx.parser.getTok()
       ctx.toCtx.parser.eat(tkColon)

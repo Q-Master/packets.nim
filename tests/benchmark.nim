@@ -17,8 +17,9 @@ proc tproc(p: Test1) =
   var fl {.used.} = p.login
 
 var t = now()
-for _ in 0..1:
+for _ in 0..1000000:
   var f = Test1.loads(tJson)
   tproc(f)
+  #echo f.pretty
 
 echo "Nim packets " &  $(now()-t)
