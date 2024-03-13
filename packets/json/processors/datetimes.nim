@@ -7,7 +7,7 @@ type
 
 # ------------------- Load
 
-proc load*(ctx: TPacketDataSource, t: typedesc[Time]): Time =
+proc load*(ctx: var TPacketDataSource, t: typedesc[Time]): Time =
   if ctx.toCtx.parser.tok == tkInt:
     result = fromUnix(parseBiggestInt(ctx.toCtx.parser.a))
   elif ctx.toCtx.parser.tok == tkFloat:
@@ -16,7 +16,7 @@ proc load*(ctx: TPacketDataSource, t: typedesc[Time]): Time =
     raise newException(ValueError, "Wrong field type: " & $ctx.toCtx.parser.tok)
   discard ctx.toCtx.parser.getTok()
 
-proc load*(ctx: TPacketDataSource, t: typedesc[DateTime]): DateTime =
+proc load*(ctx: var TPacketDataSource, t: typedesc[DateTime]): DateTime =
   if ctx.toCtx.parser.tok == tkInt:
     result = fromUnix(parseBiggestInt(ctx.toCtx.parser.a)).local()
   elif ctx.toCtx.parser.tok == tkFloat:

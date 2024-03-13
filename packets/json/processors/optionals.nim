@@ -3,7 +3,7 @@ import ../context
 
 # ------------------- Load
 
-proc load*[T: TPacket](ctx: TPacketDataSource, t: typedesc[Option[T]]): Option[T] =
+proc load*[T: TPacket](ctx: var TPacketDataSource, t: typedesc[Option[T]]): Option[T] =
   mixin load
   if ctx.toCtx.parser.tok == tkNull:
     result = none(T)
@@ -17,7 +17,7 @@ proc load*[T: TPacket](ctx: TPacketDataSource, t: typedesc[Option[T]]): Option[T
 
 
 
-proc load*[T](ctx: TPacketDataSource, t: typedesc[Option[T]]): Option[T] =
+proc load*[T](ctx: var TPacketDataSource, t: typedesc[Option[T]]): Option[T] =
   mixin load
   if ctx.toCtx.parser.tok == tkNull:
     result = none(T)

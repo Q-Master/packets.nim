@@ -3,7 +3,7 @@ import ../context
 
 # ------------------- Load
 
-proc load*[U: string|SomeInteger|SomeFloat, T](ctx: TPacketDataSource, t: typedesc[Table[U, T]]): Table[U, T] =
+proc load*[U: string|SomeInteger|SomeFloat, T](ctx: var TPacketDataSource, t: typedesc[Table[U, T]]): Table[U, T] =
   mixin load
   if ctx.toCtx.parser.tok == tkCurlyLe:
     discard ctx.toCtx.parser.getTok()

@@ -4,13 +4,13 @@ import ../internal/types
 export parsejson, types
 
 type
-  TPacketDataSourceJson* = ref object of TPacketDataSource
+  TPacketDataSourceJson* = object of TPacketDataSource
     parser*: JsonParser
 
-template toCtx*(s: TPacketDataSource): TPacketDataSourceJson = cast[TPacketDataSourceJson](s)
+template toCtx*(s: var TPacketDataSource): var TPacketDataSourceJson = TPacketDataSourceJson(s)
 
-proc skip*(s: TPacketDataSource) =
-  let ctx = s.toCtx
+proc skip*(s: var TPacketDataSource) =
+  var ctx = s.toCtx
   case ctx.parser.tok
   of tkCurlyLe:
     discard ctx.parser.getTok()

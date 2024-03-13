@@ -13,7 +13,12 @@ packet Test1:
 
 let tJson = """{"user_name":"Васисуалий","login":"vasasuali","password":"password","friends":[{"user_name":"Вас"},{"user_name":"Вас1"},{"user_name":"Вас2"}]}"""
 
+proc tproc(p: Test1) =
+  var fl {.used.} = p.login
+
 var t = now()
-for _ in 0..1_000_000:
-  var f {.used.} = Test1.loads(tJson)
+for _ in 0..1:
+  var f = Test1.loads(tJson)
+  tproc(f)
+
 echo "Nim packets " &  $(now()-t)

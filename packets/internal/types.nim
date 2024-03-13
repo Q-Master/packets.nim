@@ -1,13 +1,11 @@
 template asName*(n: string) {.pragma.}
 
 type 
-  TPacket* {.inheritable.} = ref TPacketObj
-  TPacketObj* {.inheritable.} = object
+  TPacket* {.inheritable.} = object
     when defined(enablePacketIDs):
       id*: int32
-  TArrayPacket* {.inheritable.} = ref TArrayPacketObj
-  TArrayPacketObj* {.inheritable.} = object
+  TArrayPacket* {.inheritable.} = object
     when defined(enablePacketIDs):
       id*: int32
-  TPacketDataSource* = ref object of RootObj
-  TPacketFieldSetFunc* = proc (packet: TPacket, data: TPacketDataSource)
+  TPacketDataSource* {.inheritable.} = object
+  TPacketFieldSetFunc* = proc (packet: var TPacket, data: var TPacketDataSource)

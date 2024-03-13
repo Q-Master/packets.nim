@@ -3,7 +3,7 @@ import ../context
 
 # ------------------- Load
 
-proc load*[T: SomeSignedInt](ctx: TPacketDataSource, t: typedesc[T]): T =
+proc load*[T: SomeSignedInt](ctx: var TPacketDataSource, t: typedesc[T]): T =
   if ctx.toCtx.parser.tok != tkInt:
     raise newException(ValueError, "Wrong field type: " & $ctx.toCtx.parser.tok)
   let decoded = parseBiggestInt(ctx.toCtx.parser.a)
@@ -12,7 +12,7 @@ proc load*[T: SomeSignedInt](ctx: TPacketDataSource, t: typedesc[T]): T =
   result = T(decoded)
   discard ctx.toCtx.parser.getTok()
 
-proc load*[T: SomeUnsignedInt](ctx: TPacketDataSource, t: typedesc[T]): T =
+proc load*[T: SomeUnsignedInt](ctx: var TPacketDataSource, t: typedesc[T]): T =
   if ctx.toCtx.parser.tok != tkInt:
     raise newException(ValueError, "Wrong field type: " & $ctx.toCtx.parser.tok)
   let decoded = parseBiggestInt(ctx.toCtx.parser.a)
@@ -21,7 +21,7 @@ proc load*[T: SomeUnsignedInt](ctx: TPacketDataSource, t: typedesc[T]): T =
   result = T(decoded)
   discard ctx.toCtx.parser.getTok()
 
-proc load*[T: SomeFloat](ctx: TPacketDataSource, t: typedesc[T]): T =
+proc load*[T: SomeFloat](ctx: var TPacketDataSource, t: typedesc[T]): T =
   if ctx.toCtx.parser.tok != tkFloat:
     raise newException(ValueError, "Wrong field type: " & $ctx.toCtx.parser.tok)
   let decoded = parseFloat(ctx.toCtx.parser.a)

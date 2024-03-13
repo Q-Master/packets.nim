@@ -1,7 +1,8 @@
 import std/[options, strutils, tables, sets, macros]
 import ./internal/types
 import ./internal/packet
-export TPacket, TArrayPacket, TPacketDataSource, TPacketFieldSetFunc, asName, packet, arrayPacket, tables, sets, macros
+export TPacket, TPacketDataSource, TPacketFieldSetFunc, asName, packet, tables, sets, macros
+#export TArrayPacket, arrayPacket
 
 proc indent(s: var string, i: int)
 proc pretty*[T: TPacket | TArrayPacket](p: T, ci=1): string =
@@ -12,7 +13,7 @@ proc pretty*[T: TPacket | TArrayPacket](p: T, ci=1): string =
   indent(str, ci)
   when defined(enablePacketIDs):
     str.add("ID " & $p.id)
-  for k, v in p[].fieldPairs:
+  for k, v in p.fieldPairs:
     if k in fields:
       str.add("\n")
       indent(str, ci)

@@ -14,6 +14,7 @@ proc loads*[T: TPacket | TArrayPacket](p: type[T], buffer: string): T =
   ctx.parser.open(bufferStream, "")
   try:
     discard ctx.parser.getTok()
+    echo "!!!! ", ctx.parser.tok
     result = ctx.load(p)
     eat(ctx.parser, tkEof) # check if there is no extra data
   finally:

@@ -2,7 +2,7 @@ import ../context
 
 # ------------------- Load
 
-proc load*[T](ctx: TPacketDataSource, t: typedesc[seq[T]]): seq[T] =
+proc load*[T](ctx: var TPacketDataSource, t: typedesc[seq[T]]): seq[T] =
   mixin load
   if ctx.toCtx.parser.tok == tkBracketLe:
     discard ctx.toCtx.parser.getTok()
