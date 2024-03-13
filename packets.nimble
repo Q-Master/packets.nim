@@ -1,11 +1,11 @@
 # Package
 description = "Pure Nim declarative packets system for serializing/deserializing"
-version     = "0.9.0"
+version     = "1.0.0"
 license     = "MIT"
 author      = "Vladimir Berezenko <qmaster2000@gmail.com>"
 
 # Dependencies
-requires "nim >= 1.4.00"
+requires "nim >= 2.0.2"
 task test, "tests":
   echo "Running stdlib json tests"
   exec "nim c -r -d:enablePacketIDs --nimcache=./.nimcache/ tests/packets.nim"
