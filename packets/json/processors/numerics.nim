@@ -22,7 +22,7 @@ proc load*[T: SomeUnsignedInt](ctx: var TPacketDataSource, t: typedesc[T]): T =
   discard ctx.toCtx.parser.getTok()
 
 proc load*[T: SomeFloat](ctx: var TPacketDataSource, t: typedesc[T]): T =
-  if ctx.toCtx.parser.tok != tkFloat:
+  if ctx.toCtx.parser.tok != tkFloat and ctx.toCtx.parser.tok != tkInt:
     raise newException(ValueError, "Wrong field type: " & $ctx.toCtx.parser.tok)
   let decoded = parseFloat(ctx.toCtx.parser.a)
   if decoded > high(T) or decoded < low(T):
