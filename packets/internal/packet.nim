@@ -12,6 +12,25 @@ type
 var packetCache {.compiletime, global.}: Table[string, TCacheItem]
 
 
+proc concatBases(bases: openArray[string]): seq[string] {.compiletime.} =
+  result = @[]
+  for base in bases:
+    result.add(concatBases(packetCache[base].basenames))
+    result.add(base)
+
+
+proc generateId(name, bases: openArray[string]): int32 {.compiletime.} =
+  var basesSeq: seq[string] = concatBases(bases)
+  basesSeq.add(name)
+  var hash = join(basesSeq, "__")
+  let packetId = BiggestInt(crc32(hash))
+  result = 
+    if packetId >= int32.high:
+      int32(packetId - 1.shl(32))
+    else:
+      int32(packetId)
+
+
 proc genFieldNode(field: NimNode): NimNode {.compiletime.} =
   case field.kind
   of nnkPostfix:
