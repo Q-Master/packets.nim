@@ -171,7 +171,6 @@ suite "Array Packets":
     check(pktLoaded.field1 == 1)
     check(pktLoaded.field2 == 2.0)
 
-#[
 suite "Seq of packets":
   setup:
     discard
@@ -189,6 +188,7 @@ suite "Seq of packets":
     let pktd {.used.}= pkt.dumps()
 
 
+#[
 suite "Packet with table":
   setup:
     discard

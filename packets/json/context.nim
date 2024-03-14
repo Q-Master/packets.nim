@@ -10,25 +10,24 @@ type
 template toCtx*(s: var TPacketDataSource): var TPacketDataSourceJson = TPacketDataSourceJson(s)
 
 proc skip*(s: var TPacketDataSource) =
-  var ctx = s.toCtx
-  case ctx.parser.tok
+  case s.toCtx.parser.tok
   of tkCurlyLe:
-    discard ctx.parser.getTok()
-    while ctx.parser.tok != tkCurlyRi:
-      discard ctx.parser.getTok()
-      ctx.parser.eat(tkColon)
+    discard s.toCtx.parser.getTok()
+    while s.toCtx.parser.tok != tkCurlyRi:
+      discard s.toCtx.parser.getTok()
+      s.toCtx.parser.eat(tkColon)
       s.skip()
-      if ctx.parser.tok != tkComma:
+      if s.toCtx.parser.tok != tkComma:
         break
-      discard ctx.parser.getTok() #skipping "," token
-    eat(ctx.parser, tkCurlyRi)
+      discard s.toCtx.parser.getTok() #skipping "," token
+    eat(s.toCtx.parser, tkCurlyRi)
   of tkBracketLe:
-    discard ctx.parser.getTok()
-    while ctx.parser.tok != tkBracketRi:
-      ctx.skip()
-      if ctx.parser.tok != tkComma:
+    discard s.toCtx.parser.getTok()
+    while s.toCtx.parser.tok != tkBracketRi:
+      s.toCtx.skip()
+      if s.toCtx.parser.tok != tkComma:
         break
-      discard ctx.parser.getTok() #skipping "," token
-    eat(ctx.parser, tkBracketRi)
+      discard s.toCtx.parser.getTok() #skipping "," token
+    eat(s.toCtx.parser, tkBracketRi)
   else:
-    discard ctx.parser.getTok()
+    discard s.toCtx.parser.getTok()

@@ -7,9 +7,8 @@ export parsejson, booleans, numerics, strs, datetimes, enums, optionals, seqs, s
 
 # ------------------- Load
 
-proc loads*[T: TPacket | TArrayPacket](p: type[T], buffer: string): T =
+proc loads*[T: TPacket | TArrayPacket](p: type[T], bufferStream: Stream): T =
   mixin load
-  let bufferStream = newStringStream(buffer)
   var ctx = TPacketDataSourceJson()
   ctx.parser.open(bufferStream, "")
   try:
@@ -19,18 +18,30 @@ proc loads*[T: TPacket | TArrayPacket](p: type[T], buffer: string): T =
   finally:
     ctx.parser.close()
 
+proc loads*[T: TPacket | TArrayPacket](p: type[T], buffer: string): T =
+  let bufferStream = newStringStream(buffer)
+  result = p.loads(bufferStream)
+  defer:
+    bufferStream.close()
+
+
+proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], bufferStream: Stream): seq[T] =
+  mixin load
+  var ctx = TPacketDataSourceJson()
+  ctx.parser.open(bufferStream, "")
+  try:
+    discard ctx.parser.getTok()
+    result = ctx.load(p)
+    eat(ctx.parser, tkEof) # check if there is no extra data
+  finally:
+    ctx.parser.close()
 
 proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], buffer: string): seq[T] =
-  mixin load
   let bufferStream = newStringStream(buffer)
-  var ctx = TPacketDataSourceJson()
-  ctx.parser.open(bufferStream, "")
-  try:
-    discard ctx.parser.getTok()
-    result = ctx.load(p)
-    eat(ctx.parser, tkEof) # check if there is no extra data
-  finally:
-    ctx.parser.close()
+  result = p.loads(bufferStream)
+  defer:
+    bufferStream.close()
+
 
 # ------------------- Dump
 

@@ -181,12 +181,12 @@ proc createLoaderForField(name: string, field, fieldType: NimNode, isArray: bool
     if isArray:
       quote do:
         proc `fieldLoaderIdent`(`pIdent`: var TArrayPacket, `sIdent`: var TPacketDataSource)=
-          mixin load
+          #mixin load
           `nameIdent`(`pIdent`).`field` = s.load(`fieldType`)
     else:
       quote do:
         proc `fieldLoaderIdent`(`pIdent`: var TPacket, `sIdent`: var TPacketDataSource)=
-          mixin load
+          #mixin load
           `nameIdent`(`pIdent`).`field` = s.load(`fieldType`)
   result = (fieldLoaderIdent, loader)
 
@@ -355,7 +355,6 @@ macro packet*(head, body: untyped): untyped =
   result.add(baseFunctions)
   let deserData = createDeserData($packetname, allFields, requiredFields)
   result.add(deserData)
-  echo result.repr
 
 
 macro arrayPacket*(head, body: untyped): untyped =
