@@ -2,7 +2,7 @@ import std/[options, strutils, tables, sets, macros]
 import ./internal/types
 import ./internal/packet
 export TPacket, TPacketDataSource, TPacketFieldSetFunc, asName, packet, tables, sets, macros
-#export TArrayPacket, arrayPacket
+export TArrayPacket, arrayPacket
 
 proc indent(s: var string, i: int)
 proc pretty*[T: TPacket | TArrayPacket](p: T, ci=1): string =

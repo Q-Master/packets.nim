@@ -89,7 +89,8 @@ proc createType(
           if $fieldNode[1] in allFieldsHash:
             error("Redefinition of field " & $fieldNode[1], trueElem)
           if trueElem[1].kind != nnkBracketExpr or trueElem[1][0] != ident "Option":
-            requiredFields.add($fieldNode[1])
+            if not isArray:
+              requiredFields.add($fieldNode[1])
           elif isArray:
             error("Array packets can't contain optional fields", trueElem)
           allFields.add((fieldNode[1], trueElem[1], $fieldNode[1]))
@@ -115,7 +116,8 @@ proc createType(
           error("Redefinition of field " & $fieldNode[1], trueElem)
         if trueElem[0][0].kind == nnkPostFix:
           if trueElem[1].kind != nnkBracketExpr or trueElem[1][0] != ident "Option":
-            requiredFields.add(asName)
+            if not isArray:
+              requiredFields.add(asName)
           elif isArray:
             error("Array packets can't contain optional fields", trueElem)
         allFields.add((fieldNode[1], trueElem[1], asName))
@@ -132,7 +134,10 @@ proc createType(
       nnkObjectTy.newTree(
         newEmptyNode(),
         nnkOfInherit.newTree(
-          ident "TPacket"
+          if isArray:
+            ident "TArrayPacket"
+          else:
+            ident "TPacket"
         ),
         reclist
       )
@@ -145,16 +150,45 @@ proc createType(
   )
 
 
-proc createLoaderForField(name: string, field, fieldType: NimNode): (NimNode, NimNode) {.compiletime.} =
+proc createLoaderForField(name: string, field, fieldType: NimNode, isArray: bool = false): (NimNode, NimNode) {.compiletime.} =
   let fieldLoaderIdent = ident(name.normalize() & $field & "Loader")
   let nameIdent = ident(name)
   let sIdent = ident "s"
   let pIdent = ident "p"
-  let loader = quote do:
-    proc `fieldLoaderIdent`(`pIdent`: var TPacket, `sIdent`: var TPacketDataSource)=
-      mixin load
-      `nameIdent`(`pIdent`).`field` = s.load(`fieldType`)
+  let loader = 
+    if isArray:
+      quote do:
+        proc `fieldLoaderIdent`(`pIdent`: var TArrayPacket, `sIdent`: var TPacketDataSource)=
+          mixin load
+          `nameIdent`(`pIdent`).`field` = s.load(`fieldType`)
+    else:
+      quote do:
+        proc `fieldLoaderIdent`(`pIdent`: var TPacket, `sIdent`: var TPacketDataSource)=
+          mixin load
+          `nameIdent`(`pIdent`).`field` = s.load(`fieldType`)
   result = (fieldLoaderIdent, loader)
+
+
+proc addPacketFields(nameIdent: NimNode, normalName: string, fields: openArray[(NimNode, NimNode, string)]): NimNode {.compiletime.}=
+  result = nnkStmtList.newTree()
+  let fieldsName = ident(normalName & "Fields")
+  if fields.len == 0:
+    result.add(
+      quote do:
+        const `fieldsName` = []
+    )
+  else:
+    var allfieldnames: seq[NimNode]
+    for (field, _, _) in fields:
+      allfieldnames.add(newStrLitNode($field))
+    result.add(
+      quote do:
+        const `fieldsName` = `allfieldnames`
+    )
+  result.add(
+    quote do:
+      proc packetFields(_: `nameIdent`): auto = `fieldsName`
+  )
 
 
 proc createDeserData(name: string, fields: openArray[(NimNode, NimNode, string)], requiredFields: openArray[string]): NimNode {.compiletime.} =
@@ -179,25 +213,7 @@ proc createDeserData(name: string, fields: openArray[(NimNode, NimNode, string)]
     quote do:
       proc deserMapping(_: typedesc[`nameIdent`]): auto = `deserName`
   )
-
-  let fieldsName = ident(normalName & "Fields")
-  if fields.len == 0:
-    result.add(
-      quote do:
-        const `fieldsName` = []
-    )
-  else:
-    var allfieldnames: seq[NimNode]
-    for (field, _, _) in fields:
-      allfieldnames.add(newStrLitNode($field))
-    result.add(
-      quote do:
-        const `fieldsName` = `allfieldnames`
-    )
-  result.add(
-    quote do:
-      proc packetFields(_: `nameIdent`): auto = `fieldsName`
-  )
+  result.add(addPacketFields(nameIdent, normalName, fields))
 
   let requiredName = ident(normalName & "Required")
   if requiredFields.len == 0:
@@ -259,12 +275,27 @@ proc createDeserData(name: string, fields: openArray[(NimNode, NimNode, string)]
   )
 
 
-macro packet*(head, body: untyped): untyped =
-  var packetname: NimNode
-  var normalPacketName: string
-  var packetnameIdent: NimNode
-  var basenames: seq[string]
+proc createArrayDeserData(name: string, fields: openArray[(NimNode, NimNode, string)]): NimNode {.compiletime.} =
+  let normalName = name.normalize()
+  result = newStmtList()
+  let nameIdent = ident(name)
+  let deserName = ident(normalName & "Deser")
+  var deserFuncs = nnkBracket.newTree()
+  for (fieldIdent, fieldType, fieldName) in fields:
+    let (loaderIdent, loader) = createLoaderForField(name, fieldIdent, fieldType, true)
+    result.add(loader)
+    deserFuncs.add(loaderIdent)
+  result.add(
+    quote do:
+      const `deserName` = `deserFuncs`
+      proc deserMapping(_: typedesc[`nameIdent`]): auto = `deserName`
+  )
+  result.add(addPacketFields(nameIdent, normalName, fields))
 
+
+proc getNameAndBases(head: NimNode): (NimNode, seq[string]) {.compiletime.} =
+  var packetname: NimNode
+  var basenames: seq[string]
   case head.kind
   of nnkIdent:
     packetname = head
@@ -286,17 +317,30 @@ macro packet*(head, body: untyped): untyped =
       packetname = head[1]
   else:
     error("Error in packet header", head)
-  normalPacketName = ($packetname).normalize()
-  packetnameIdent = ident($packetname)
-
+  
   for basename in basenames:
     if not packetCache.hasKey(basename):
       error("No such base type " & basename, head)
+  result = (packetname, basenames)
 
+
+macro packet*(head, body: untyped): untyped =
+  let (packetname, basenames) = getNameAndBases(head)
   result = newStmtList()
   let (typeNode, requiredFields, allFields, baseFunctions) = createType(packetname, basenames, body)
   typeNode.setLineInfo(head.lineInfoObj)
   result.add(typeNode)
   result.add(baseFunctions)
   let deserData = createDeserData($packetname, allFields, requiredFields)
+  result.add(deserData)
+
+
+macro arrayPacket*(head, body: untyped): untyped =
+  let (packetname, basenames) = getNameAndBases(head)
+  result = newStmtList()
+  let (typeNode, _, allFields, baseFunctions) = createType(packetname, basenames, body, true)
+  typeNode.setLineInfo(head.lineInfoObj)
+  result.add(typeNode)
+  result.add(baseFunctions)
+  let deserData = createArrayDeserData($packetname, allFields)
   result.add(deserData)

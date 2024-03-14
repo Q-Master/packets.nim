@@ -57,11 +57,11 @@ packet PacketWithTable:
 packet PacketCyclic:
   var field1*: Option[PacketCyclic]
   var field2*: int
+]#
 
 arrayPacket SimpleArrayPacket:
   var field1*: int
   var field2*: float
-]#
 
 suite "Packets":
   setup:
@@ -206,13 +206,12 @@ suite "Packets":
     check(pktLoaded.field1.get().field1 == 10)
     check(pktLoaded.field1.get().field2 == "subpacket")
 
-#[
 suite "Array Packets":
   setup:
     discard
 
   test "Simple ArrayPacket":
-    let pkt = SimpleArrayPacket.new(field1 = 1, field2 = 2.0)
+    let pkt = SimpleArrayPacket(field1: 1, field2: 2.0)
     check(pkt.field1 == 1)
     check(pkt.field2 == 2.0)
     let js = pkt.dumps()
@@ -226,6 +225,7 @@ suite "Array Packets":
     check(pktLoaded.field1 == 1)
     check(pktLoaded.field2 == 2.0)
 
+#[
 suite "Seq of packets":
   setup:
     discard

@@ -37,13 +37,13 @@ proc load*[T: TArrayPacket](ctx: var TPacketDataSource, p: typedesc[T]): T =
   if ctx.toCtx.parser.tok == tkBracketLe:
     let deserMapping = p.deserMapping()
     var idx = 0
-    result = p.new()
+    var decodedPacket = p()
     discard ctx.toCtx.parser.getTok()
     while ctx.toCtx.parser.tok != tkBracketRi:
       #ArrayPacket's fields are all required fields
       if idx < deserMapping.len:
         let loader = deserMapping[idx]
-        loader(TPacket(result), TPacketDataSource(ctx))
+        loader(decodedPacket, ctx)
       else:
         discard ctx.toCtx.parser.getTok() #skipping extra data
       if ctx.toCtx.parser.tok != tkComma:
@@ -51,6 +51,7 @@ proc load*[T: TArrayPacket](ctx: var TPacketDataSource, p: typedesc[T]): T =
       idx.inc()
       discard ctx.toCtx.parser.getTok() #skipping "," token
     eat(ctx.toCtx.parser, tkBracketRi)
+    result = decodedPacket
     if idx < deserMapping.len-1:
       raise newException(ValueError, $(deserMapping.len - idx) & " required field(s) missing")
   else:
