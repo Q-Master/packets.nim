@@ -1,4 +1,4 @@
-import std/[macros, tables, strutils, sets, options]
+import std/[macros, tables, strutils, sets]
 import ./util/crc32
 import ./types
 
@@ -73,11 +73,11 @@ proc createType(
       allFieldsHash.incl(field[2])
       baseFunctions.add(
         quote do:
-          proc `fname`(t: `packetIdent`): `ftype` = t.`basenameident`.`fname`
+          proc `fname`*(t: `packetIdent`): `ftype` = t.`basenameident`.`fname`
       )
       baseFunctions.add(
         quote do:
-          proc `fnameeq`(t: var `packetIdent`, x: `ftype`) = t.`basenameident`.`fname` = x
+          proc `fnameeq`*(t: var `packetIdent`, x: `ftype`) = t.`basenameident`.`fname` = x
       )
     let bnNormal = basename.normalize()
     reclist.add(
@@ -148,7 +148,10 @@ proc createType(
       reclist.add(typeNode)
   let theType = nnkTypeSection.newTree(
     nnkTypeDef.newTree(
-      ident packetname,
+      nnkPostfix.newTree(
+        ident "*",
+        ident packetname
+      ),
       newEmptyNode(),
       nnkObjectTy.newTree(
         newEmptyNode(),
@@ -177,12 +180,12 @@ proc createLoaderForField(name: string, field, fieldType: NimNode, isArray: bool
   let loader = 
     if isArray:
       quote do:
-        proc `fieldLoaderIdent`(`pIdent`: var TArrayPacket, `sIdent`: var TPacketDataSource)=
+        proc `fieldLoaderIdent`*(`pIdent`: var TArrayPacket, `sIdent`: var TPacketDataSource)=
           mixin load
           `nameIdent`(`pIdent`).`field` = s.load(`fieldType`)
     else:
       quote do:
-        proc `fieldLoaderIdent`(`pIdent`: var TPacket, `sIdent`: var TPacketDataSource)=
+        proc `fieldLoaderIdent`*(`pIdent`: var TPacket, `sIdent`: var TPacketDataSource)=
           mixin load
           `nameIdent`(`pIdent`).`field` = s.load(`fieldType`)
   result = (fieldLoaderIdent, loader)
@@ -206,7 +209,7 @@ proc addPacketFields(nameIdent: NimNode, normalName: string, fields: openArray[(
     )
   result.add(
     quote do:
-      proc packetFields(_: `nameIdent`): auto = `fieldsName`
+      proc packetFields*(_: `nameIdent`): auto = `fieldsName`
   )
 
 
@@ -230,7 +233,7 @@ proc createDeserData(name: string, fields: openArray[(NimNode, NimNode, string)]
     )
   result.add(
     quote do:
-      proc deserMapping(_: typedesc[`nameIdent`]): auto = `deserName`
+      proc deserMapping*(_: typedesc[`nameIdent`]): auto = `deserName`
   )
   result.add(addPacketFields(nameIdent, normalName, fields))
 
@@ -250,8 +253,8 @@ proc createDeserData(name: string, fields: openArray[(NimNode, NimNode, string)]
     )
   result.add(
     quote do:
-      proc requiredFields(_: typedesc[`nameIdent`]): auto = `requiredName`
-      proc requiredFields(_: `nameIdent`): auto = `requiredName`
+      proc requiredFields*(_: typedesc[`nameIdent`]): auto = `requiredName`
+      proc requiredFields*(_: `nameIdent`): auto = `requiredName`
   )
   let mappingName = ident(normalName & "Mapping")
   var mappingList: NimNode = nnkTableConstr.newTree()
@@ -289,8 +292,8 @@ proc createDeserData(name: string, fields: openArray[(NimNode, NimNode, string)]
     )
   result.add(
     quote do:
-      proc mapping(_: typedesc[`nameIdent`]): auto = `mappingName`
-      proc mapping(_: `nameIdent`): auto = `mappingName`
+      proc mapping*(_: typedesc[`nameIdent`]): auto = `mappingName`
+      proc mapping*(_: `nameIdent`): auto = `mappingName`
   )
 
 
@@ -307,7 +310,7 @@ proc createArrayDeserData(name: string, fields: openArray[(NimNode, NimNode, str
   result.add(
     quote do:
       const `deserName` = `deserFuncs`
-      proc deserMapping(_: typedesc[`nameIdent`]): auto = `deserName`
+      proc deserMapping*(_: typedesc[`nameIdent`]): auto = `deserName`
   )
   result.add(addPacketFields(nameIdent, normalName, fields))
 

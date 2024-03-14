@@ -1,4 +1,4 @@
-import std/[unittest, options, tables, times, macros]
+import std/[unittest, options, tables, times]
 import packets/packets
 import packets/json/serialization
 
