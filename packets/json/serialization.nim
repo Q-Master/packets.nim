@@ -13,7 +13,6 @@ proc loads*[T: TPacket | TArrayPacket](p: type[T], bufferStream: Stream): T =
   ctx.parser.open(bufferStream)
   discard ctx.parser.getTok()
   ctx.load(result)
-  eat(ctx.parser, tkEof) # check if there is no extra data
 
 proc loads*[T: TPacket | TArrayPacket](p: type[T], buffer: string): T =
   let bufferStream = newStringStream(buffer)
@@ -28,7 +27,6 @@ proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], bufferStream: Stream): s
   ctx.parser.open(bufferStream)
   discard ctx.parser.getTok()
   ctx.load(result)
-  eat(ctx.parser, tkEof) # check if there is no extra data
 
 proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], buffer: string): seq[T] =
   let bufferStream = newStringStream(buffer)

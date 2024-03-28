@@ -59,7 +59,9 @@ proc skipCR(self: var Stream) =
 proc skip(self: var JsonParser) =
   var buf: string = newString(2)
   while true:
-    discard self.source.peekData(buf[0].addr, 2)
+    let len = self.source.peekData(buf[0].addr, 2)
+    if len == 0:
+      break
     case buf[0]
     of '/':
       if buf[1] == '/':
