@@ -2,12 +2,14 @@ import ../context
 
 # ------------------- Load
 
-proc load*[T](ctx: var TPacketDataSource, t: typedesc[seq[T]]): seq[T] =
+proc load*[T](ctx: var TPacketDataSource, dest: var seq[T]) =
   mixin load
   if ctx.toCtx.parser.tok == tkBracketLe:
     discard ctx.toCtx.parser.getTok()
     while ctx.toCtx.parser.tok != tkBracketRi:
-      result.add(ctx.load(T))
+      var d: T
+      load(ctx, d)
+      dest.add(d)
       if ctx.toCtx.parser.tok != tkComma:
         break
       discard ctx.toCtx.parser.getTok() #skipping "," token
@@ -17,14 +19,18 @@ proc load*[T](ctx: var TPacketDataSource, t: typedesc[seq[T]]): seq[T] =
 
 # ------------------- Dump
 
-proc dump*[T](t: seq[T]): string =
+const strLBracket = "["
+const strRBracket = "]"
+const strComma = ","
+
+proc dump*[T](t: seq[T], dest: var string) =
   mixin dump
-  result = "["
+  dest.add(strLBracket)
   var first: bool = true
   for v in t:
     if first:
       first = false
     else:
-      result.add(",") 
-    result.add(v.dump())
-  result.add("]")
+      dest.add(strComma)
+    v.dump(dest)
+  dest.add(strRBracket)

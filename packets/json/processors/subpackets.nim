@@ -3,47 +3,41 @@ import ../context
 
 # ------------------- Load
 
-proc load*[T: TPacket](ctx: var TPacketDataSource, p: typedesc[T]): T =
+proc load*[T: TPacket](ctx: var TPacketDataSource, dest: var T) =
   mixin load
   if ctx.toCtx.parser.tok == tkCurlyLe:
-    var req = p.requiredFields()
-    let deserMapping = p.deserMapping()
-    var decodedPacket = p()
+    var req = dest.requiredFields()
     discard ctx.toCtx.parser.getTok()
     while ctx.toCtx.parser.tok != tkCurlyRi:
       if ctx.toCtx.parser.tok != tkString:
         raise newException(ValueError, "Key must be string")
       let currKey = ctx.toCtx.parser.a
-      req.excl(currKey) # mapped by default by a generator
-      let loader = deserMapping.getOrDefault(currKey, nil)
       discard ctx.toCtx.parser.getTok()
       ctx.toCtx.parser.eat(tkColon)
-      if loader.isNil:
+      let res = load(currKey, dest, ctx)
+      if res == 1:
+        req.dec()
+      elif res == -1:
         ctx.skip()
-      else:
-        loader(decodedPacket, ctx)
       if ctx.toCtx.parser.tok != tkComma:
         break
       discard ctx.toCtx.parser.getTok() #skipping "," token
-    if req.len > 0:
-      raise newException(ValueError, "Required field(s) " & $req & " missing (" & $p & ")")
+    if req > 0:
+      raise newException(ValueError, $req & " required field(s) missing")
     eat(ctx.toCtx.parser, tkCurlyRi)
-    result = decodedPacket
   else:
     raise newException(ValueError, "Not an object")
 
-proc load*[T: TArrayPacket](ctx: var TPacketDataSource, p: typedesc[T]): T =
+proc load*[T: TArrayPacket](ctx: var TPacketDataSource, dest: var T) =
   mixin load
   if ctx.toCtx.parser.tok == tkBracketLe:
-    let deserMapping = p.deserMapping()
     var idx = 0
-    var decodedPacket = p()
+    var req = dest.requiredFields()
     discard ctx.toCtx.parser.getTok()
     while ctx.toCtx.parser.tok != tkBracketRi:
       #ArrayPacket's fields are all required fields
-      if idx < deserMapping.len:
-        let loader = deserMapping[idx]
-        loader(decodedPacket, ctx)
+      if idx < req:
+        discard load(idx, dest, ctx)
       else:
         discard ctx.toCtx.parser.getTok() #skipping extra data
       if ctx.toCtx.parser.tok != tkComma:
@@ -51,42 +45,46 @@ proc load*[T: TArrayPacket](ctx: var TPacketDataSource, p: typedesc[T]): T =
       idx.inc()
       discard ctx.toCtx.parser.getTok() #skipping "," token
     eat(ctx.toCtx.parser, tkBracketRi)
-    result = decodedPacket
-    if idx < deserMapping.len-1:
-      raise newException(ValueError, $(deserMapping.len - idx) & " required field(s) missing")
+    if idx < req-1:
+      raise newException(ValueError, $(req - idx) & " required field(s) missing")
   else:
     raise newException(ValueError, "Not an object")
 
 # ------------------- Dump
 
-proc dump*[T: TPacket](p: T): string =
+proc dump*[T: TPacket](p: T, dest: var string) =
   mixin dump
-  result = "{"
-  let fields = p.packetFields()
-  let m = p.mapping()
+  dest.add(strLCurly)
   var first: bool = true
-  for k,v in p.fieldPairs:
-    if k in fields:
+  var d: string
+  for k,v in p.fields:
+    d.setLen(0)
+    if v == false:
+      dump(k, p, d)
+      if d == strNull:
+        continue
       if first:
         first = false
       else:
-        result.add(",") 
-      result.add("\"" & m.getOrDefault(k, k) & "\":" & v.dump())
-  result.add("}")
+        dest.add(strComma)
+      dest.add(strQuote & k & strQuoteColon & d)
+    else:
+      if first:
+        first = false
+      else:
+        dest.add(strComma)
+      dest.add(strQuote & k & strQuoteColon)
+      dump(k, p, dest)
+  dest.add(strRCurly)
 
-proc dump*[T: TArrayPacket](p: T): string =
+proc dump*[T: TArrayPacket](p: T, dest: var string) =
   mixin dump
-  result = "["
-  let fields = p.packetFields()
+  dest.add(strLBracket)
   var first: bool = true
-  when defined(enablePacketIDs):
-    first = false
-    result.add(p.id.dump())
-  for k,v in p.fieldPairs:
-    if k != "id" and k in fields:
-      if first:
+  for idx in 0 ..< p.requiredFields:
+    if first:
         first = false
-      else:
-        result.add(",") 
-      result.add(v.dump())
-  result.add("]")
+    else:
+      dest.add(strComma) 
+    dump(idx, p, dest)
+  dest.add(strRBracket)

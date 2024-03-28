@@ -3,13 +3,13 @@ import ../context
 
 # ------------------- Load
 
-proc load*[T: enum](ctx: var TPacketDataSource, t: typedesc[T]): T =
+proc load*[T: enum](ctx: var TPacketDataSource, dest: var T) =
   if ctx.toCtx.parser.tok != tkInt:
     raise newException(ValueError, "Wrong field type: " & $ctx.toCtx.parser.tok)
-  result = T(parseBiggestInt(ctx.toCtx.parser.a))
+  dest = T(parseBiggestInt(ctx.toCtx.parser.a))
   discard ctx.toCtx.parser.getTok()
 
 # ------------------- Dump
 
-proc dump*[T: enum](en: T): string =
-  result = $(ord(en).int)
+proc dump*[T: enum](en: T, dest: var string) =
+  dest.add($(ord(en).int))

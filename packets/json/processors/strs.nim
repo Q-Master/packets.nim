@@ -3,13 +3,13 @@ import ../context
 
 # ------------------- Load
 
-proc load*(ctx: var TPacketDataSource, t: typedesc[string]): string =
+proc load*(ctx: var TPacketDataSource, dest: var string) =
   if ctx.toCtx.parser.tok != tkString:
     raise newException(ValueError, "Wrong field type: " & $ctx.toCtx.parser.tok)
-  result = ctx.toCtx.parser.a.unescape(prefix="", suffix="")
+  dest = ctx.toCtx.parser.a.unescape(prefix="", suffix="")
   discard ctx.toCtx.parser.getTok()
 
 # ------------------- Dump
 
-proc dump*(t: string): string =
-  result = t.escape()
+proc dump*(t: string, dest: var string) =
+  dest.add(t.escape())

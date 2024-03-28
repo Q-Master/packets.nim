@@ -11,15 +11,15 @@ packet Test1:
   var password*: string
   var friends*: seq[Test]
 
-let tJson = """{"user_name":"Васисуалий","login":"vasasuali","password":"password","friends":[{"user_name":"Вас"},{"user_name":"Вас1"},{"user_name":"Вас2"}]}"""
+const tJson = """{"user_name":"Васисуалий","login":"vasasuali","password":"password","friends":[{"user_name":"Вас"},{"user_name":"Вас1"},{"user_name":"Вас2"}]}"""
 
 proc tproc(p: Test1) =
   var fl {.used.} = p.login
 
 var t = now()
-for _ in 0..1000000:
-  var f = Test1.loads(tJson)
-  tproc(f)
-  #echo f.pretty
+var f: Test1
+for _ in 0..100:
+  f = Test1.loads(tJson)
+  f.tproc()
 
 echo "Nim packets " &  $(now()-t)

@@ -1,4 +1,4 @@
-import std/[macros, tables, strutils, sets]
+import std/[macros, tables, strutils, sets, options]
 import ./util/crc32
 import ./types
 
@@ -6,7 +6,9 @@ import ./types
 type
   TCacheItem = object
     basenames: seq[string]
-    allFields: seq[(NimNode, NimNode, string)]
+    allFields: OrderedTable[string, (seq[NimNode], NimNode, string)]
+    exportedFields: seq[string]
+    requiredFields: seq[string]
 
 
 var packetCache {.compiletime, global.}: Table[string, TCacheItem]
@@ -46,38 +48,56 @@ proc genFieldNode(field: NimNode): NimNode {.compiletime.} =
     error("Unknown var section " & $field.kind, field)
 
 
+proc genFieldaccessor(allIdents: openArray[NimNode], prefix: Option[NimNode] = NimNode.none): NimNode =
+  if prefix.isSome:
+    result = newDotExpr(prefix.get, allIdents[0])
+  else:
+    result = allIdents[0]
+  if allIdents.len > 1:
+    for idx in 1 .. allIdents.high:
+      result = newDotExpr(result, allIdents[idx])
+
+
 proc createType(
   packetIdent: NimNode, basenames: seq[string], 
   body: NimNode,
   isArray = false
-): (NimNode, seq[string], seq[(NimNode, NimNode, string)], NimNode) {.compiletime.} =
+): (NimNode, seq[string], seq[string], OrderedTable[string, (seq[NimNode], NimNode, string)], NimNode) {.compiletime.} =
   let packetname = $packetIdent
   if packetCache.hasKey(packetname):
     error("Redefining the " & packetname, body)
   var reclist = newNimNode(nnkRecList)
   var requiredFields: seq[string]
-  var allFields: seq[(NimNode, NimNode, string)]
+  var exportedFields: seq[string]
+  var allFields: OrderedTable[string, (seq[NimNode], NimNode, string)]
   var baseFunctions = newStmtList()
   var allFieldsHash: HashSet[string]
+  let tIdent = ident "t"
+  let xIdent = ident "x"
   for basename in basenames:
     let t = packetCache[basename]
+    requiredFields.add(t.requiredFields)
+    exportedFields.add(t.exportedFields)
     let basenameident = ident(basename.normalize())
-    for field in t.allFields:
-      let fname = field[0]
-      let fnameeq = ident($fname & "=")
-      let ftype = field[1]
-      if $fname in allFieldsHash or field[2] in allFieldsHash:
-        error("Duplicate field " & $fname, field[0])
-      allFields.add(field)
-      allFieldsHash.incl($fname)
-      allFieldsHash.incl(field[2])
+    for fname, fdata in t.allFields.pairs:
+      var newData = fdata
+      let ftype = newData[1]
+      if fname in allFieldsHash or newData[2] in allFieldsHash:
+        error("Duplicate field " & fname, newData[0][^1])
+      newData[0].insert(basenameident, 0)
+      allFields[fname] = newData
+      allFieldsHash.incl(fname)
+      allFieldsHash.incl(newData[2])
+      let fpath = genFieldaccessor(newData[0], tIdent.option)
+      let fieldIdent = ident fname
       baseFunctions.add(
         quote do:
-          proc `fname`*(t: `packetIdent`): `ftype` = t.`basenameident`.`fname`
+          proc `fieldIdent`*(`tIdent`: `packetIdent`): `ftype` = `fpath`
       )
+      let fieldIdentEq = newTree(nnkAccQuoted, ident(fname & "="))
       baseFunctions.add(
         quote do:
-          proc `fnameeq`*(t: var `packetIdent`, x: `ftype`) = t.`basenameident`.`fname` = x
+          proc `fieldIdentEq`*(`tIdent`: var `packetIdent`, `xIdent`: `ftype`) = `fpath` = x
       )
     let bnNormal = basename.normalize()
     reclist.add(
@@ -108,12 +128,12 @@ proc createType(
           if $fieldNode[1] in allFieldsHash:
             error("Redefinition of field " & $fieldNode[1], trueElem)
           if trueElem[1].kind != nnkBracketExpr or trueElem[1][0] != ident "Option":
-            if not isArray:
-              requiredFields.add($fieldNode[1])
+            requiredFields.add($fieldNode[1])
           elif isArray:
             error("Array packets can't contain optional fields", trueElem)
-          allFields.add((fieldNode[1], trueElem[1], $fieldNode[1]))
+          allFields[$fieldNode[1]] = (@[fieldNode[1]], trueElem[1], $fieldNode[1])
           allFieldsHash.incl($fieldNode[1])
+          exportedFields.add($fieldNode[1])
         else:
           # adding only to all fieldsHash
           if $fieldNode in allFieldsHash:
@@ -135,11 +155,11 @@ proc createType(
           error("Redefinition of field " & $fieldNode[1], trueElem)
         if trueElem[0][0].kind == nnkPostFix:
           if trueElem[1].kind != nnkBracketExpr or trueElem[1][0] != ident "Option":
-            if not isArray:
-              requiredFields.add(asName)
+            requiredFields.add(asName)
           elif isArray:
             error("Array packets can't contain optional fields", trueElem)
-        allFields.add((fieldNode[1], trueElem[1], asName))
+          exportedFields.add($fieldNode[1])
+        allFields[$fieldNode[1]] = (@[fieldNode[1]], trueElem[1], asName)
         allFieldsHash.incl($fieldNode[1])
         allFieldsHash.incl(asName)
       else:
@@ -165,154 +185,281 @@ proc createType(
       )
     )
   )  
-  result = (theType, requiredFields, allFields, baseFunctions)
+  result = (theType, requiredFields, exportedFields, allFields, baseFunctions)
   packetCache[packetname] = TCacheItem(
     basenames: basenames,
-    allFields: allFields
+    allFields: allFields,
+    exportedFields: exportedFields,
+    requiredFields: requiredFields
   )
 
 
-proc createLoaderForField(name: string, field, fieldType: NimNode, isArray: bool = false): (NimNode, NimNode) {.compiletime.} =
-  let fieldLoaderIdent = ident(name.normalize() & $field & "Loader")
-  let nameIdent = ident(name)
-  let sIdent = ident "s"
-  let pIdent = ident "p"
-  let loader = 
-    if isArray:
-      quote do:
-        proc `fieldLoaderIdent`(`pIdent`: var TArrayPacket, `sIdent`: var TPacketDataSource)=
-          #mixin load
-          `nameIdent`(`pIdent`).`field` = s.load(`fieldType`)
-    else:
-      quote do:
-        proc `fieldLoaderIdent`(`pIdent`: var TPacket, `sIdent`: var TPacketDataSource)=
-          #mixin load
-          `nameIdent`(`pIdent`).`field` = s.load(`fieldType`)
-  result = (fieldLoaderIdent, loader)
-
-
-proc addPacketFields(nameIdent: NimNode, normalName: string, fields: openArray[(NimNode, NimNode, string)]): NimNode {.compiletime.}=
-  result = nnkStmtList.newTree()
-  let fieldsName = ident(normalName & "Fields")
-  if fields.len == 0:
-    result.add(
-      quote do:
-        const `fieldsName` = []
-    )
-  else:
-    var allfieldnames: seq[NimNode]
-    for (field, _, _) in fields:
-      allfieldnames.add(newStrLitNode($field))
-    result.add(
-      quote do:
-        const `fieldsName` = `allfieldnames`
-    )
-  result.add(
-    quote do:
-      proc packetFields*(_: `nameIdent`): auto = `fieldsName`
+proc genDeserNode(nameIdent: NimNode, cases: openArray[NimNode], isArray = false): NimNode {.compiletime.} =
+  var caseStmt = nnkCaseStmt.newTree(
+    ident "name"
   )
-
-
-proc createDeserData(name: string, fields: openArray[(NimNode, NimNode, string)], requiredFields: openArray[string]): NimNode {.compiletime.} =
-  let normalName = name.normalize()
-  result = newStmtList()
-  let nameIdent = ident(name)
-  let deserName = ident(normalName & "Deser")
-  result.add(
-    quote do:
-      var `deserName`: Table[string, TPacketFieldSetFunc]
-  )
-
-  for (fieldIdent, fieldType, fieldName) in fields:
-    let (loaderIdent, loader) = createLoaderForField(name, fieldIdent, fieldType)
-    result.add(loader)
-    let fieldNameStrLit = newStrLitNode(fieldName)
-    result.add(
-      quote do:
-        `deserName`[`fieldNameStrLit`] = `loaderIdent`
-    )
-  result.add(
-    quote do:
-      proc deserMapping*(_: typedesc[`nameIdent`]): auto = `deserName`
-  )
-  result.add(addPacketFields(nameIdent, normalName, fields))
-
-  let requiredName = ident(normalName & "Required")
-  if requiredFields.len == 0:
-    result.add(
-      quote do:
-        const `requiredName`: HashSet[string] = initHashSet[string]()
-    )
-  else:
-    var requiredList: seq[NimNode]
-    for field in requiredFields:
-      requiredList.add(newStrLitNode(field))
-    result.add(
-      quote do:
-        const `requiredName`: HashSet[string] = `requiredList`.toHashSet()
-    )
-  result.add(
-    quote do:
-      proc requiredFields*(_: typedesc[`nameIdent`]): auto = `requiredName`
-      proc requiredFields*(_: `nameIdent`): auto = `requiredName`
-  )
-  let mappingName = ident(normalName & "Mapping")
-  var mappingList: NimNode = nnkTableConstr.newTree()
-  for (fident, _, fname) in fields:
-    if $fident != fname:
-      mappingList.add(
-        nnkExprColonExpr.newTree(
-          newStrLitNode($fident),
-          newStrLitNode(fname)
-        )
-      )
-  if mappingList.len > 0:
-    result.add(
-      nnkConstSection.newTree(
-        nnkConstDef.newTree(
-          mappingName,
-          nnkBracketExpr.newTree(
-            ident "Table",
-            ident "string",
-            ident "string"
-          ),
-          nnkCall.newTree(
-            nnkDotExpr.newTree(
-              mappingList,
-              ident "toTable"
-            )
-          )
+  for c in cases:
+    caseStmt.add(c)
+  caseStmt.add(
+    nnkElse.newTree(
+      nnkStmtList.newTree(
+        nnkAsgn.newTree(
+          ident "result",
+          newIntLitNode(-1)
         )
       )
     )
-  else:
-    result.add(
-      quote do:
-        const `mappingName`: Table[string, string] = initTable[string, string]()
+  )
+  result = nnkProcDef.newTree(
+    nnkPostfix.newTree(
+      ident "*",
+      ident "load"
+    ),
+    newEmptyNode(),
+    newEmptyNode(),
+    nnkFormalParams.newTree(
+      ident "int8",
+      nnkIdentDefs.newTree(
+        ident "name",
+        (if isArray: ident "int" else: ident "string"),
+        newEmptyNode()
+      ),
+      nnkIdentDefs.newTree(
+        ident "p",
+        nnkVarTy.newTree(
+          nameIdent
+        ),
+        newEmptyNode()
+      ),
+      nnkIdentDefs.newTree(
+        ident "s",
+        nnkVarTy.newTree(
+          ident "TPacketDataSource"
+        ),
+        newEmptyNode()
+      )
+    ),
+    newEmptyNode(),
+    newEmptyNode(),
+    nnkStmtList.newTree(
+      caseStmt
     )
-  result.add(
-    quote do:
-      proc mapping*(_: typedesc[`nameIdent`]): auto = `mappingName`
-      proc mapping*(_: `nameIdent`): auto = `mappingName`
   )
 
 
-proc createArrayDeserData(name: string, fields: openArray[(NimNode, NimNode, string)]): NimNode {.compiletime.} =
-  let normalName = name.normalize()
+proc genDeserCase(cn: NimNode, fn: openArray[NimNode], isRequired: bool): NimNode {.compiletime.} =
+  let dotexpr = genFieldaccessor(fn, (ident "p").option)
+  result = nnkOfBranch.newTree(
+    cn,
+    nnkStmtList.newTree(
+      nnkCall.newTree(
+        nnkDotExpr.newTree(
+          ident "s",
+          ident "load"
+        ),
+        dotexpr
+      ),
+      nnkAsgn.newTree(
+        ident "result",
+        (if isRequired: newIntLitNode(1) else: newIntLitNode(0))
+      )
+    )
+  )
+
+
+proc createDeserData(
+  name: string,
+  exportedFields: openArray[string],
+  fields: OrderedTable[string, (seq[NimNode], NimNode, string)], 
+  requiredFields: openArray[string]
+): NimNode {.compiletime.} =
   result = newStmtList()
   let nameIdent = ident(name)
-  let deserName = ident(normalName & "Deser")
-  var deserFuncs = nnkBracket.newTree()
-  for (fieldIdent, fieldType, fieldName) in fields:
-    let (loaderIdent, loader) = createLoaderForField(name, fieldIdent, fieldType, true)
-    result.add(loader)
-    deserFuncs.add(loaderIdent)
+  var cases: seq[NimNode]
+  for fn in exportedFields:
+    let (fieldIdents, _, fieldName) = fields[fn]
+    cases.add(
+      genDeserCase(newStrLitNode(fieldName), fieldIdents, fieldName in requiredFields)
+    )
+  result.add(
+    genDeserNode(nameIdent, cases, false)
+  )
+
+  let amount = newIntLitNode(requiredFields.len)
+
   result.add(
     quote do:
-      const `deserName` = `deserFuncs`
-      proc deserMapping*(_: typedesc[`nameIdent`]): auto = `deserName`
+      proc requiredFields*(_: typedesc[`nameIdent`]): int = `amount`
+      proc requiredFields*(_: `nameIdent`): int = `amount`
   )
-  result.add(addPacketFields(nameIdent, normalName, fields))
+
+
+proc createArrayDeserData(
+  name: string, 
+  exportedFields: openArray[string],
+  fields: OrderedTable[string, (seq[NimNode], NimNode, string)], 
+  requiredFieldsAmount: int
+): NimNode {.compiletime.} =
+  result = newStmtList()
+  let nameIdent = ident(name)
+  var cases: seq[NimNode]
+  var idx = 0
+  for fn in exportedFields:
+    let (fieldIdents, _, _) = fields[fn]
+    cases.add(
+      genDeserCase(newIntLitNode(idx), fieldIdents, true)
+    )
+    idx.inc()
+  result.add(
+    genDeserNode(nameIdent, cases, true)
+  )
+  let amount = newIntLitNode(requiredFieldsAmount)
+  result.add(
+    quote do:
+      proc requiredFields*(_: typedesc[`nameIdent`]): int = `amount`
+      proc requiredFields*(_: `nameIdent`): int = `amount`
+  )
+
+
+proc genSerCase(cn: NimNode, fn: openArray[NimNode]): NimNode {.compiletime.} =
+  let dotexpr = genFieldaccessor(fn, (ident "p").option)
+  result = nnkOfBranch.newTree(
+    cn,
+    nnkStmtList.newTree(
+      nnkCall.newTree(
+        nnkDotExpr.newTree(
+          dotexpr,
+          ident "dump"
+        ),
+        ident "d"
+      )
+    )
+  )
+
+
+proc genSerNode(name: string, cases: openArray[NimNode], isArray = false): NimNode {.compiletime.} =
+  var caseStmt = nnkCaseStmt.newTree(
+    ident "name"
+  )
+  for c in cases:
+    caseStmt.add(c)
+  caseStmt.add(
+    nnkElse.newTree(
+      nnkStmtList.newTree(
+        nnkDiscardStmt.newTree(
+          newEmptyNode()
+        )
+      )
+    )
+  )
+  result = nnkProcDef.newTree(
+    nnkPostfix.newTree(
+      ident "*",
+      ident "dump"
+    ),
+    newEmptyNode(),
+    newEmptyNode(),
+    nnkFormalParams.newTree(
+      newEmptyNode(),
+      nnkIdentDefs.newTree(
+        ident "name",
+        (if isArray: ident "int" else: ident "string"),
+        newEmptyNode()
+      ),
+      nnkIdentDefs.newTree(
+        ident "p",
+        ident(name),
+        newEmptyNode()
+      ),
+      nnkIdentDefs.newTree(
+        ident "d",
+        nnkVarTy.newTree(
+          ident "string"
+        ),
+        newEmptyNode()
+      )
+    ),
+    newEmptyNode(),
+    newEmptyNode(),
+    nnkStmtList.newTree(
+      caseStmt
+    )
+  )
+
+
+proc buildYield(fn: string, isRequired: bool): NimNode =
+  result = nnkYieldStmt.newTree(
+    nnkTupleConstr.newTree(
+      newStrLitNode(fn),
+      (if isRequired: ident "true" else: ident "false")
+    )
+  )
+
+
+proc createSerData(
+  name: string,
+  exportedFields: openArray[string],
+  fields: OrderedTable[string, (seq[NimNode], NimNode, string)], 
+  requiredFields: openArray[string]
+): NimNode {.compiletime.} =
+  result = newStmtList()
+  var allYields = newStmtList()
+  var cases: seq[NimNode]
+  for fn in exportedFields:
+    let (field, _, fname) = fields[fn]
+    allYields.add(
+      buildYield(fname, fn in requiredFields)
+    )
+    cases.add(
+      genSerCase(newStrLitNode(fname), field)
+    )
+  result.add(
+    nnkIteratorDef.newTree(
+      nnkPostfix.newTree(
+        ident "*",
+        ident "fields"
+      ),
+      newEmptyNode(),
+      newEmptyNode(),
+      nnkFormalParams.newTree(
+        nnkTupleConstr.newTree(
+          ident "string",
+          ident "bool"
+        ),
+        nnkIdentDefs.newTree(
+          ident "p",
+          ident(name),
+          newEmptyNode()
+        )
+      ),
+      newEmptyNode(),
+      newEmptyNode(),
+      allYields
+    )
+  )
+  result.add(
+    genSerNode(name, cases)
+  )
+
+
+proc createArraySerData(
+  name: string,
+  exportedFields: openArray[string],
+  fields: OrderedTable[string, (seq[NimNode], NimNode, string)], 
+  requiredFields: openArray[string]
+): NimNode {.compiletime.} =
+  result = newStmtList()
+  var idx = 0
+  var cases: seq[NimNode]
+  for fn in exportedFields:
+    let (field, _, _) = fields[fn]
+    cases.add(
+      genSerCase(newIntLitNode(idx), field)
+    )
+    idx.inc()
+  result.add(
+    genSerNode(name, cases, true)
+  )
 
 
 proc getNameAndBases(head: NimNode): (NimNode, seq[string]) {.compiletime.} =
@@ -349,20 +496,24 @@ proc getNameAndBases(head: NimNode): (NimNode, seq[string]) {.compiletime.} =
 macro packet*(head, body: untyped): untyped =
   let (packetname, basenames) = getNameAndBases(head)
   result = newStmtList()
-  let (typeNode, requiredFields, allFields, baseFunctions) = createType(packetname, basenames, body)
+  let (typeNode, requiredFields, exportedFields, allFields, baseFunctions) = createType(packetname, basenames, body)
   typeNode.setLineInfo(head.lineInfoObj)
   result.add(typeNode)
   result.add(baseFunctions)
-  let deserData = createDeserData($packetname, allFields, requiredFields)
+  let deserData = createDeserData($packetname, exportedFields, allFields, requiredFields)
   result.add(deserData)
+  let serData = createSerData($packetname, exportedFields, allFields, requiredFields)
+  result.add(serData)
 
 
 macro arrayPacket*(head, body: untyped): untyped =
   let (packetname, basenames) = getNameAndBases(head)
   result = newStmtList()
-  let (typeNode, _, allFields, baseFunctions) = createType(packetname, basenames, body, true)
+  let (typeNode, requiredFields, exportedFields, allFields, baseFunctions) = createType(packetname, basenames, body, true)
   typeNode.setLineInfo(head.lineInfoObj)
   result.add(typeNode)
   result.add(baseFunctions)
-  let deserData = createArrayDeserData($packetname, allFields)
+  let deserData = createArrayDeserData($packetname, exportedFields, allFields, requiredFields.len())
   result.add(deserData)
+  let serData = createArraySerData($packetname, exportedFields, allFields, requiredFields)
+  result.add(serData)
