@@ -194,37 +194,40 @@ proc parseString(source: var Stream, dest: var string) =
   let strlen = source.skipString()
   source.setPosition(pos)
   dest.setLen(strlen)
-  var destUnchecked = cast[ptr UncheckedArray[char]](dest[0].addr)
-  var at = 0
-  template add(ds: ptr UncheckedArray[char], c: char) =
-    ds[at] = c
-    at.inc
-  while true:
-    ch = source.readChar()
-    if ch == '\"':
-      break
-    if ch != '\\':
-      destUnchecked.add(ch)
-    else:
+  if strlen == 0:
+    ch = source.readChar() # skipping '\"'
+  else:
+    var destUnchecked = cast[ptr UncheckedArray[char]](dest[0].addr)
+    var at = 0
+    template add(ds: ptr UncheckedArray[char], c: char) =
+      ds[at] = c
+      at.inc
+    while true:
       ch = source.readChar()
-      case ch
-      of 'b':
-        destUnchecked.add('\b')
-      of 'f':
-        destUnchecked.add('\f')
-      of 'n':
-        destUnchecked.add('\n')
-      of 'r':
-        destUnchecked.add('\r')
-      of 't':
-        destUnchecked.add('\t')
-      of '\"', '\\', '/':
+      if ch == '\"':
+        break
+      if ch != '\\':
         destUnchecked.add(ch)
-      of 'u':
-        for c in source.parseUTF16():
-          destUnchecked.add(c)
       else:
-        raise newException(ValueError, "Unexpected escape sequence")
+        ch = source.readChar()
+        case ch
+        of 'b':
+          destUnchecked.add('\b')
+        of 'f':
+          destUnchecked.add('\f')
+        of 'n':
+          destUnchecked.add('\n')
+        of 'r':
+          destUnchecked.add('\r')
+        of 't':
+          destUnchecked.add('\t')
+        of '\"', '\\', '/':
+          destUnchecked.add(ch)
+        of 'u':
+          for c in source.parseUTF16():
+            destUnchecked.add(c)
+        else:
+          raise newException(ValueError, "Unexpected escape sequence")
 
 
 proc parseInt(source: var Stream, dest: var int): int =

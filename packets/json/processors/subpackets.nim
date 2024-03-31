@@ -24,7 +24,7 @@ proc load*[T: TPacket](ctx: var TPacketDataSource, dest: var T) =
         break
       discard ctx.toCtx.parser.getTok() #skipping "," token
     if req > 0:
-      raise newException(ValueError, $req & " required field(s) missing")
+      raise newException(ValueError, $req & " required field(s) missing for " & $T)
     eat(ctx.toCtx.parser, tkCurlyRi)
   else:
     raise newException(ValueError, "Not an object")
@@ -47,7 +47,7 @@ proc load*[T: TArrayPacket](ctx: var TPacketDataSource, dest: var T) =
       discard ctx.toCtx.parser.getTok() #skipping "," token
     eat(ctx.toCtx.parser, tkBracketRi)
     if idx < req-1:
-      raise newException(ValueError, $(req - idx) & " required field(s) missing")
+      raise newException(ValueError, $(req - idx) & " required field(s) missing for " & $T)
   else:
     raise newException(ValueError, "Not an object")
 

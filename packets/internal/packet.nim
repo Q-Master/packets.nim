@@ -195,7 +195,7 @@ proc createType(
 
 proc genDeserNode(nameIdent: NimNode, cases: openArray[NimNode], isArray = false): NimNode {.compiletime.} =
   var caseStmt = nnkCaseStmt.newTree(
-    ident "name"
+    ident "n"
   )
   for c in cases:
     caseStmt.add(c)
@@ -219,7 +219,7 @@ proc genDeserNode(nameIdent: NimNode, cases: openArray[NimNode], isArray = false
     nnkFormalParams.newTree(
       ident "int8",
       nnkIdentDefs.newTree(
-        ident "name",
+        ident "n",
         (if isArray: ident "int" else: ident "string"),
         newEmptyNode()
       ),
@@ -338,7 +338,7 @@ proc genSerCase(cn: NimNode, fn: openArray[NimNode]): NimNode {.compiletime.} =
 
 proc genSerNode(name: string, cases: openArray[NimNode], isArray = false): NimNode {.compiletime.} =
   var caseStmt = nnkCaseStmt.newTree(
-    ident "name"
+    ident "n"
   )
   for c in cases:
     caseStmt.add(c)
@@ -361,7 +361,7 @@ proc genSerNode(name: string, cases: openArray[NimNode], isArray = false): NimNo
     nnkFormalParams.newTree(
       newEmptyNode(),
       nnkIdentDefs.newTree(
-        ident "name",
+        ident "n",
         (if isArray: ident "int" else: ident "string"),
         newEmptyNode()
       ),
