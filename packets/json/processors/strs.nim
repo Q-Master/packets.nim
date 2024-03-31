@@ -4,9 +4,7 @@ import ../context
 # ------------------- Load
 
 proc load*(ctx: var TPacketDataSource, dest: var string) =
-  if ctx.toCtx.parser.tok != tkString:
-    raise newException(ValueError, "Wrong field type: " & $ctx.toCtx.parser.tok)
-  dest = ctx.toCtx.parser.a.unescape(prefix="", suffix="")
+  ctx.toCtx.parser.getString(dest)
   discard ctx.toCtx.parser.getTok()
 
 # ------------------- Dump

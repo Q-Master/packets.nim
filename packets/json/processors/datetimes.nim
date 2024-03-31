@@ -1,4 +1,4 @@
-import std/[times, strutils]
+import std/times
 import ../context
 
 type
@@ -8,21 +8,15 @@ type
 # ------------------- Load
 
 proc load*(ctx: var TPacketDataSource, dest: var Time) =
-  if ctx.toCtx.parser.tok == tkInt:
-    dest = fromUnix(parseBiggestInt(ctx.toCtx.parser.a))
-  elif ctx.toCtx.parser.tok == tkFloat:
-    dest = fromUnixFloat(parseFloat(ctx.toCtx.parser.a))
-  else:
-    raise newException(ValueError, "Wrong field type: " & $ctx.toCtx.parser.tok)
+  var f: float
+  ctx.toCtx.parser.getFloat(f)
+  dest = fromUnixFloat(f)
   discard ctx.toCtx.parser.getTok()
 
 proc load*(ctx: var TPacketDataSource, dest: var DateTime) =
-  if ctx.toCtx.parser.tok == tkInt:
-    dest = fromUnix(parseBiggestInt(ctx.toCtx.parser.a)).local()
-  elif ctx.toCtx.parser.tok == tkFloat:
-    dest = fromUnixFloat(parseFloat(ctx.toCtx.parser.a)).local()
-  else:
-    raise newException(ValueError, "Wrong field type: " & $ctx.toCtx.parser.tok)
+  var f: float
+  ctx.toCtx.parser.getFloat(f)
+  dest = fromUnixFloat(f).local()
   discard ctx.toCtx.parser.getTok()
 
 # ------------------- Dump

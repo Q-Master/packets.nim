@@ -1,6 +1,5 @@
 import std/[macros, tables, strutils, sets, options]
 import ./util/crc32
-import ./types
 
 
 type
@@ -408,7 +407,7 @@ proc createSerData(
   for fn in exportedFields:
     let (field, _, fname) = fields[fn]
     allYields.add(
-      buildYield(fname, fn in requiredFields)
+      buildYield(fname, fname in requiredFields)
     )
     cases.add(
       genSerCase(newStrLitNode(fname), field)
@@ -445,8 +444,7 @@ proc createSerData(
 proc createArraySerData(
   name: string,
   exportedFields: openArray[string],
-  fields: OrderedTable[string, (seq[NimNode], NimNode, string)], 
-  requiredFields: openArray[string]
+  fields: OrderedTable[string, (seq[NimNode], NimNode, string)]
 ): NimNode {.compiletime.} =
   result = newStmtList()
   var idx = 0
@@ -515,5 +513,5 @@ macro arrayPacket*(head, body: untyped): untyped =
   result.add(baseFunctions)
   let deserData = createArrayDeserData($packetname, exportedFields, allFields, requiredFields.len())
   result.add(deserData)
-  let serData = createArraySerData($packetname, exportedFields, allFields, requiredFields)
+  let serData = createArraySerData($packetname, exportedFields, allFields)
   result.add(serData)

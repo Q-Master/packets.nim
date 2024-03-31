@@ -8,13 +8,14 @@ proc load*[T: TPacket](ctx: var TPacketDataSource, dest: var T) =
   if ctx.toCtx.parser.tok == tkCurlyLe:
     var req = dest.requiredFields()
     discard ctx.toCtx.parser.getTok()
+    var currKey: string
+    var res: int
     while ctx.toCtx.parser.tok != tkCurlyRi:
-      if ctx.toCtx.parser.tok != tkString:
-        raise newException(ValueError, "Key must be string")
-      let currKey = ctx.toCtx.parser.a
+      currKey.setLen(0)
+      ctx.toCtx.parser.getString(currKey)
       discard ctx.toCtx.parser.getTok()
       ctx.toCtx.parser.eat(tkColon)
-      let res = load(currKey, dest, ctx)
+      res = load(currKey, dest, ctx)
       if res == 1:
         req.dec()
       elif res == -1:

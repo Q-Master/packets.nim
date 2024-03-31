@@ -6,8 +6,8 @@ proc load*[T](ctx: var TPacketDataSource, dest: var seq[T]) =
   mixin load
   if ctx.toCtx.parser.tok == tkBracketLe:
     discard ctx.toCtx.parser.getTok()
+    var d: T
     while ctx.toCtx.parser.tok != tkBracketRi:
-      var d: T
       load(ctx, d)
       dest.add(d)
       if ctx.toCtx.parser.tok != tkComma:

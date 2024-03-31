@@ -3,9 +3,7 @@ import ../context
 # ------------------- Load
 
 proc load*(ctx: var TPacketDataSource, dest: var bool) =
-  if ctx.toCtx.parser.tok != tkFalse and ctx.toCtx.parser.tok != tkTrue:
-    raise newException(ValueError, "Wrong field type: " & $ctx.toCtx.parser.tok)
-  dest = (ctx.toCtx.parser.tok == tkTrue)
+  ctx.toCtx.parser.getBool(dest)
   discard ctx.toCtx.parser.getTok()
 
 # ------------------- Dump

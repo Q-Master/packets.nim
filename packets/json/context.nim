@@ -23,7 +23,6 @@ type
   JsonParser* = object
     source: Stream
     tok*: TokKind
-    a*: string
 
   TPacketDataSourceJson* = object of TPacketDataSource
     parser*: JsonParser
@@ -44,22 +43,38 @@ const strNull* = "null"
 template toCtx*(s: var TPacketDataSource): var TPacketDataSourceJson = TPacketDataSourceJson(s)
 
 
-proc skip(source: var Stream, amount: Natural) =
+template skip(source: var Stream, amount: Natural) =
   var pos = source.getPosition()
   pos += amount
   source.setPosition(pos)
 
 
-proc skipCR(self: var Stream) =
+template skipCR(self: var Stream) =
   let c = self.peekChar()
   if c == '\L':
     self.skip(1)
 
 
-proc skip(self: var JsonParser) =
-  var buf: string = newString(2)
+template skipIdents(source: var Stream) =
+  var pos = 0
+  var ch: char
   while true:
-    let len = self.source.peekData(buf[0].addr, 2)
+    pos = source.getPosition()
+    ch = source.readChar()
+    if ch in IdentChars:
+      discard
+    else:
+      source.setPosition(pos)
+      break
+
+
+proc skip(self: var JsonParser) =
+  var buf: array[2, char]
+  var len: int
+  var c: char
+  var star = false
+  while true:
+    len = self.source.peekData(buf[0].addr, 2)
     if len == 0:
       break
     case buf[0]
@@ -68,7 +83,7 @@ proc skip(self: var JsonParser) =
         # skip line comment:
         self.source.skip(2)
         while true:
-          let c = self.source.readChar()
+          c = self.source.readChar()
           case c
           of '\0':
             break
@@ -82,9 +97,8 @@ proc skip(self: var JsonParser) =
       elif buf[1] == '*':
         # skip long comment:
         self.source.skip(2)
-        var star = false
         while true:
-          let c = self.source.readChar()
+          c = self.source.readChar()
           case c
           of '\0':
             raise newException(IOError, "Unexpected EOF")
@@ -111,9 +125,11 @@ proc skip(self: var JsonParser) =
     else:
       break
 
+
 proc parseHex4(source: var Stream): uint32 =
+  var ch: char
   for i in 0..3:
-    var ch = source.readChar()
+    ch = source.readChar()
     if ch >= '0' and ch <= '9':
       result += ch.uint32 - '0'.uint32
     elif ch >= 'A' and ch <= 'F':
@@ -128,14 +144,12 @@ proc parseHex4(source: var Stream): uint32 =
 
 proc parseUTF16(source: var Stream): string =
   var codepoint: uint32
-  var firstCode = source.parseHex4()
+  let firstCode = source.parseHex4()
   if firstCode >= 0xDC00 and firstCode <= 0xDFFF:
     raise newException(ValueError, "Mailformed UTF16")
   if firstCode >= 0xD800 and firstCode <= 0xDBFF:
-    var twoBytes = source.readStr(2)
-    if twoBytes != "\\u":
-      raise newException(ValueError, "Mailformed UTF16")
-    var secondCode = source.parseHex4()
+    source.skip(2)
+    let secondCode = source.parseHex4()
     if secondCode < 0xDC00 or secondCode > 0xDFFF:
       raise newException(ValueError, "Mailformed UTF16")
     codepoint = 0x10000.uint32 + ((firstCode and 0x3FF).shl(10) or (secondCode and 0x3FF))
@@ -144,77 +158,175 @@ proc parseUTF16(source: var Stream): string =
   result = toUTF8(Rune(codepoint))
 
 
-proc parseString(source: var Stream, dest: var string) =
+proc skipString(source: var Stream): int =
+  var ch : char
+  result = 0
   while true:
-    var ch = source.readChar()
+    ch = source.readChar()
     if ch == '\"':
       break
     if ch != '\\':
-      dest.add(ch)
+      result.inc
     else:
       ch = source.readChar()
       case ch
       of 'b':
-        dest.add('\b')
+        result.inc
       of 'f':
-        dest.add('\f')
+        result.inc
       of 'n':
-        dest.add('\n')
+        result.inc
       of 'r':
-        dest.add('\r')
+        result.inc
       of 't':
-        dest.add('\t')
+        result.inc
       of '\"', '\\', '/':
-        dest.add(ch)
+        result.inc
       of 'u':
-        dest.add(source.parseUTF16())
+        result.inc(source.parseUTF16().len)
       else:
         raise newException(ValueError, "Unexpected escape sequence")
 
 
-proc parseNumber(source: var Stream, dest: var string): bool =
-  result = false
+proc parseString(source: var Stream, dest: var string) =
+  var ch : char
+  var pos = source.getPosition()
+  let strlen = source.skipString()
+  source.setPosition(pos)
+  dest.setLen(strlen)
+  var destUnchecked = cast[ptr UncheckedArray[char]](dest[0].addr)
+  var at = 0
+  template add(ds: ptr UncheckedArray[char], c: char) =
+    ds[at] = c
+    at.inc
   while true:
-    let pos = source.getPosition()
-    let ch = source.readChar()
+    ch = source.readChar()
+    if ch == '\"':
+      break
+    if ch != '\\':
+      destUnchecked.add(ch)
+    else:
+      ch = source.readChar()
+      case ch
+      of 'b':
+        destUnchecked.add('\b')
+      of 'f':
+        destUnchecked.add('\f')
+      of 'n':
+        destUnchecked.add('\n')
+      of 'r':
+        destUnchecked.add('\r')
+      of 't':
+        destUnchecked.add('\t')
+      of '\"', '\\', '/':
+        destUnchecked.add(ch)
+      of 'u':
+        for c in source.parseUTF16():
+          destUnchecked.add(c)
+      else:
+        raise newException(ValueError, "Unexpected escape sequence")
+
+
+proc parseInt(source: var Stream, dest: var int): int =
+  result = 0
+  var pos: int
+  var ch: char
+  var sign = 1
+  while true:
+    pos = source.getPosition()
+    ch = source.readChar()
     case ch
-    of '0'..'9', '-':
-      dest.add(ch)
-    of '.', 'E', 'e':
-      dest.add(ch)
-      result = true
+    of '-':
+      sign = -1
+    of '0' .. '9':
+      dest *= 10
+      dest += (ord(ch) - ord('0'))
+      if result == 0:
+        result = 1
+      else:
+        result *= 10
     else:
       source.setPosition(pos)
-      break
-  
+      break    
 
-proc parseBoolNull(source: var Stream, dest: var string) =
-  var ch = source.peekChar()
-  if ch in {'T', 't', 'F', 'f', 'N', 'n'}:
-    while true:
-      let pos = source.getPosition()
-      let ch = source.readChar()
-      if ch in IdentChars:
-        dest.add(ch)
-      else:
-        source.setPosition(pos)
-        break
+
+proc getString*(self: var JsonParser, dest: var string) =
+  if self.tok == tkString:
+    self.source.parseString(dest)
+    self.tok = tkError
+  else:
+    raise newException(ValueError, "Current token is not string: " & $self.tok)
+
+
+proc getInt*[T:SomeInteger](self: var JsonParser, dest: var T) =
+  if self.tok == tkInt:
+    var i = 0
+    discard self.source.parseInt(i)
+    let ch = self.source.peekChar()
+    if ch in {'.', 'E', 'e'}:
+      raise newException(ValueError, "Floating point number found")
+    dest = T(i)
+    self.tok = tkError
+  else:
+    raise newException(ValueError, "Current token is not integer: " & $self.tok)
+
+
+proc getFloat*[T: SomeFloat](self: var JsonParser, dest: var T) =
+  var pos: int
+  var f = 0.0
+  var mantissa = 0
+  var exponent = 0
+  var multiplier = 0
+  if self.tok == tkFloat or self.tok == tkInt:
+    discard self.source.parseInt(mantissa)
+    f = mantissa.float
+    pos = self.source.getPosition()
+    let ch = self.source.readChar()
+    case ch
+    of '.':
+      multiplier = self.source.parseInt(exponent)
+      f += exponent.float / multiplier.float
+    of 'E', 'e':
+      multiplier = 0
+      discard self.source.parseInt(multiplier)
+      if multiplier > 0:
+        f *= multiplier.float
+      elif multiplier < 0:
+        f /= multiplier.float
+    else:
+      self.source.setPosition(pos)
+    dest = T(f)
+    self.tok = tkError
+  else:
+    raise newException(ValueError, "Current token is not float: " & $self.tok)
+
+
+proc getBool*(self: var JsonParser, dest: var bool) =
+  if self.tok == tkTrue:
+    dest = true
+  elif self.tok == tkFalse:
+    dest = false
+  else:
+    raise newException(ValueError, "Current token is not bool: " & $self.tok)
+  self.source.skipIdents()
+  self.tok = tkError
+
+
+proc getNull*(self: var JsonParser) =
+  if self.tok != tkNull:
+    raise newException(ValueError, "Current token is not bool: " & $self.tok)
+  self.source.skipIdents()
+  self.tok = tkError
 
 
 proc getTok*(self: var JsonParser): TokKind =
-  self.a.setLen(0)
   self.skip() # skip whitespace, comments
   let ch = self.source.peekChar
   case ch
   of '-', '.', '0'..'9':
-    let isFloat = self.source.parseNumber(self.a)
-    if isFloat:
-      result = tkFloat
-    else:
-      result = tkInt
+    result = tkInt
   of '"':
     self.source.skip(1)
-    self.source.parseString(self.a)
     result = tkString
   of '[':
     self.source.skip(1)
@@ -236,13 +348,12 @@ proc getTok*(self: var JsonParser): TokKind =
     result = tkColon
   of '\0':
     result = tkEof
-  of 'a'..'z', 'A'..'Z', '_':
-    self.source.parseBoolNull(self.a)
-    case self.a.toLower()
-    of "null": result = tkNull
-    of "true": result = tkTrue
-    of "false": result = tkFalse
-    else: result = tkError
+  of 'n', 'N':
+    result = tkNull
+  of 't', 'T':
+    result = tkTrue
+  of 'f', 'F':
+    result = tkFalse
   else:
     self.source.skip(1)
     result = tkError
@@ -251,34 +362,75 @@ proc getTok*(self: var JsonParser): TokKind =
 
 proc eat*(p: var JsonParser, tok: TokKind) =
   if p.tok == tok: discard getTok(p)
-  else: raise newException(ValueError, "Unexpected token " & $tok)
+  else: raise newException(ValueError, "Unexpected token " & $p.tok & ", waiting " & $tok)
+
+
+template skipCurlies(self: var JsonParser) =
+  var curlies = 1
+  var ch: char = ' '
+  var skip: bool = false
+  while true:
+    ch = self.source.readChar()
+    if not skip:
+      case ch
+      of '{':
+        curlies.inc()
+      of '}':
+        curlies.dec()
+        if curlies == 0:
+          break
+      else:
+        discard
+    if ch == '\\':
+      skip = true
+    else:
+      skip = false
+
+
+template skipBrackets(self: var JsonParser) =
+  var brackets = 1
+  var ch: char = ' '
+  var skip: bool = false
+  while true:
+    ch = self.source.readChar()
+    if not skip:
+      case ch
+      of '[':
+        brackets.inc()
+      of ']':
+        brackets.dec()
+        if brackets == 0:
+          break
+      else:
+        discard
+    if ch == '\\':
+      skip = true
+    else:
+      skip = false
 
 
 proc skip*(s: var TPacketDataSource) =
   case s.toCtx.parser.tok
   of tkCurlyLe:
-    discard s.toCtx.parser.getTok()
-    while s.toCtx.parser.tok != tkCurlyRi:
-      discard s.toCtx.parser.getTok()
-      s.toCtx.parser.eat(tkColon)
-      s.skip()
-      if s.toCtx.parser.tok != tkComma:
-        break
-      discard s.toCtx.parser.getTok() #skipping "," token
-    eat(s.toCtx.parser, tkCurlyRi)
+    s.toCtx.parser.skipCurlies()
+    s.toCtx.parser.tok = tkError
   of tkBracketLe:
-    discard s.toCtx.parser.getTok()
-    while s.toCtx.parser.tok != tkBracketRi:
-      s.toCtx.skip()
-      if s.toCtx.parser.tok != tkComma:
-        break
-      discard s.toCtx.parser.getTok() #skipping "," token
-    eat(s.toCtx.parser, tkBracketRi)
+    s.toCtx.parser.skipBrackets()
+    s.toCtx.parser.tok = tkError
   else:
-    discard s.toCtx.parser.getTok()
+    case s.toCtx.parser.tok
+    of tkString:
+      discard s.toCtx.parser.source.skipString()
+    of tkTrue, tkFalse, tkNull:
+      s.toCtx.parser.source.skipIdents()
+    of tkInt, tkFloat:
+      var f: float
+      s.toCtx.parser.getFloat(f)
+    else:
+      discard
+  discard s.toCtx.parser.getTok()
 
 
 proc open*(self: var JsonParser, strm: Stream) =
   self.source = strm
-  self.a = ""
   self.tok = tkError

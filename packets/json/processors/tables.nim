@@ -1,28 +1,21 @@
-import std/[tables, strutils]
+import std/[tables]
 import ../context
 
 # ------------------- Load
+
+template getKey[T: string](ctx: var TPacketDataSource, k: var T) = ctx.toCtx.parser.getString(k)
+template getKey[T: SomeInteger](ctx: var TPacketDataSource, k: var T) = ctx.toCtx.parser.getInt[T](k)
+template getKey[T: SomeFloat](ctx: var TPacketDataSource, k: var T) = ctx.toCtx.parser.getFloat[T](k)
+
 
 proc load*[U: string|SomeInteger|SomeFloat, T](ctx: var TPacketDataSource, dest: var Table[U, T]) =
   mixin load
   var d: T
   if ctx.toCtx.parser.tok == tkCurlyLe:
     discard ctx.toCtx.parser.getTok()
+    var currKey: U
     while ctx.toCtx.parser.tok != tkCurlyRi:
-      let currKey =
-        when U is string:
-          ctx.toCtx.parser.a
-        else:
-          when U is SomeInteger:
-            when U is SomeUnsignedInt:
-              U(parseBiggestUInt(ctx.toCtx.parser.a))
-            else:
-              U(parseBiggestInt(ctx.toCtx.parser.a))
-          else:
-            when U is SomeFloat:
-              U(parseFloat(ctx.toCtx.parser.a))
-            else:
-              error "Unsupported key type"
+      ctx.getKey(currKey)
       discard ctx.toCtx.parser.getTok()
       ctx.toCtx.parser.eat(tkColon)
       ctx.load(d)
