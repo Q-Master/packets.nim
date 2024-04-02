@@ -2,20 +2,31 @@ import ../context
 
 # ------------------- Load
 
-proc load*[T](ctx: var TPacketDataSource, dest: var seq[T]) =
-  mixin load
+proc begin*[T](_: type[seq[T]], ctx: var TPacketDataSource) = 
   if ctx.toCtx.parser.tok == tkBracketLe:
     discard ctx.toCtx.parser.getTok()
-    var d: T
-    while ctx.toCtx.parser.tok != tkBracketRi:
-      load(ctx, d)
-      dest.add(d)
-      if ctx.toCtx.parser.tok != tkComma:
-        break
-      discard ctx.toCtx.parser.getTok() #skipping "," token
-    eat(ctx.toCtx.parser, tkBracketRi)
   else:
     raise newException(ValueError, "Not an array")
+
+proc next*[T](ctx: var TPacketDataSource, dest: var T): bool =
+  mixin load
+  if ctx.toCtx.parser.tok != tkBracketRi:
+    load(ctx, dest)
+    if ctx.toCtx.parser.tok == tkComma:
+      discard ctx.toCtx.parser.getTok() #skipping "," token
+    result = true
+  else:
+    eat(ctx.toCtx.parser, tkBracketRi)
+    result = false
+
+proc load*[T](ctx: var TPacketDataSource, dest: var seq[T]) =
+  var d: T
+  seq[T].begin(ctx)
+  while true:
+    if ctx.next(d):
+      dest.add(d)
+    else:
+      break
 
 # ------------------- Dump
 

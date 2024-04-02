@@ -7,33 +7,40 @@ export booleans, numerics, strs, datetimes, enums, optionals, seqs, subpackets, 
 
 # ------------------- Load
 
-proc loads*[T: TPacket | TArrayPacket](p: type[T], bufferStream: Stream): T =
-  mixin load
+proc loads*[T: TPacket | TArrayPacket](p: type[T], jsStream: Stream): T =
   var ctx = TPacketDataSourceJson()
-  ctx.parser.open(bufferStream)
+  ctx.parser.open(jsStream)
   discard ctx.parser.getTok()
   ctx.load(result)
 
-proc loads*[T: TPacket | TArrayPacket](p: type[T], buffer: string): T =
-  let bufferStream = newStringStream(buffer)
-  result = p.loads(bufferStream)
+proc loads*[T: TPacket | TArrayPacket](p: type[T], js: string): T =
+  let jsStream = newStringStream(js)
   defer:
-    bufferStream.close()
+    jsStream.close()
+  result = p.loads(jsStream)
 
 
-proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], bufferStream: Stream): seq[T] =
-  mixin load
+proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], jsStream: Stream): seq[T] =
   var ctx = TPacketDataSourceJson()
-  ctx.parser.open(bufferStream)
+  ctx.parser.open(jsStream)
   discard ctx.parser.getTok()
   ctx.load(result)
 
-proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], buffer: string): seq[T] =
-  let bufferStream = newStringStream(buffer)
-  result = p.loads(bufferStream)
+proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], js: string): seq[T] =
+  let jsStream = newStringStream(js)
   defer:
-    bufferStream.close()
+    jsStream.close()
+  result = p.loads(jsStream)
 
+
+iterator items*[T](p: type[seq[T]], jsStream: Stream): T =
+  var ctx = TPacketDataSourceJson()
+  ctx.parser.open(jsStream)
+  discard ctx.parser.getTok()
+  p.begin(ctx)
+  var d: T
+  while ctx.next(d):
+    yield d
 
 # ------------------- Dump
 
