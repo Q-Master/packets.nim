@@ -14,7 +14,7 @@ proc loads*[T: TPacket | TArrayPacket](p: type[T], jsStream: Stream): T =
     discard ctx.parser.getTok()
     ctx.load(result)
   finally:
-    ctx.parser.close(jsStream)
+    ctx.parser.close()
 
 proc loads*[T: TPacket | TArrayPacket](p: type[T], js: string): T =
   let jsStream = newStringStream(js)
@@ -31,7 +31,7 @@ proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], jsStream: Stream): seq[T
     discard ctx.parser.getTok()
     ctx.load(result)
   finally:
-    ctx.parser.close(jsStream)
+    ctx.parser.close()
 
 proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], js: string): seq[T] =
   let jsStream = newStringStream(js)
@@ -51,7 +51,7 @@ iterator items*[T](p: type[seq[T]], jsStream: Stream): T =
     while ctx.next(d):
       yield d
   finally:
-    ctx.parser.close(jsStream)
+    ctx.parser.close()
 
 # ------------------- Dump
 
