@@ -10,37 +10,48 @@ export booleans, numerics, strs, datetimes, enums, optionals, seqs, subpackets, 
 proc loads*[T: TPacket | TArrayPacket](p: type[T], jsStream: Stream): T =
   var ctx = TPacketDataSourceJson()
   ctx.parser.open(jsStream)
-  discard ctx.parser.getTok()
-  ctx.load(result)
+  try:
+    discard ctx.parser.getTok()
+    ctx.load(result)
+  finally:
+    ctx.parser.close(jsStream)
 
 proc loads*[T: TPacket | TArrayPacket](p: type[T], js: string): T =
   let jsStream = newStringStream(js)
-  defer:
+  try:
+    result = p.loads(jsStream)
+  finally:
     jsStream.close()
-  result = p.loads(jsStream)
 
 
 proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], jsStream: Stream): seq[T] =
   var ctx = TPacketDataSourceJson()
   ctx.parser.open(jsStream)
-  discard ctx.parser.getTok()
-  ctx.load(result)
+  try:
+    discard ctx.parser.getTok()
+    ctx.load(result)
+  finally:
+    ctx.parser.close(jsStream)
 
 proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], js: string): seq[T] =
   let jsStream = newStringStream(js)
-  defer:
+  try:
+    result = p.loads(jsStream)
+  finally:
     jsStream.close()
-  result = p.loads(jsStream)
 
 
 iterator items*[T](p: type[seq[T]], jsStream: Stream): T =
   var ctx = TPacketDataSourceJson()
-  ctx.parser.open(jsStream)
-  discard ctx.parser.getTok()
-  p.begin(ctx)
   var d: T
-  while ctx.next(d):
-    yield d
+  ctx.parser.open(jsStream)
+  try:
+    discard ctx.parser.getTok()
+    p.begin(ctx)
+    while ctx.next(d):
+      yield d
+  finally:
+    ctx.parser.close(jsStream)
 
 # ------------------- Dump
 

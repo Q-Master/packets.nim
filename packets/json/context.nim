@@ -437,3 +437,7 @@ proc skip*(s: var TPacketDataSource) =
 proc open*(self: var JsonParser, strm: Stream) =
   self.source = strm
   self.tok = tkError
+
+proc close*(self: var JsonParser) =
+  self.source = nil
+  self.tok = tkError
