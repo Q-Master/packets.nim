@@ -8,10 +8,10 @@ export booleans, numerics, strs, datetimes, enums, optionals, seqs, subpackets, 
 # ------------------- Load
 
 proc loads*[T: TPacket | TArrayPacket](p: type[T], jsStream: Stream): T =
-  var ctx = TPacketDataSourceJson()
+  var ctx = newDataSourceJson()
   ctx.parser.open(jsStream)
   try:
-    discard ctx.parser.getTok()
+    ctx.parser.getTok()
     ctx.load(result)
   finally:
     ctx.parser.close()
@@ -25,10 +25,10 @@ proc loads*[T: TPacket | TArrayPacket](p: type[T], js: string): T =
 
 
 proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], jsStream: Stream): seq[T] =
-  var ctx = TPacketDataSourceJson()
+  var ctx = newDataSourceJson()
   ctx.parser.open(jsStream)
   try:
-    discard ctx.parser.getTok()
+    ctx.parser.getTok()
     ctx.load(result)
   finally:
     ctx.parser.close()
@@ -42,11 +42,11 @@ proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], js: string): seq[T] =
 
 
 iterator items*[T](p: type[seq[T]], jsStream: Stream): T =
-  var ctx = TPacketDataSourceJson()
+  var ctx = newDataSourceJson()
   var d: T
   ctx.parser.open(jsStream)
   try:
-    discard ctx.parser.getTok()
+    ctx.parser.getTok()
     p.begin(ctx)
     while ctx.next(d):
       yield d

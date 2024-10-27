@@ -3,9 +3,9 @@ import ../context
 
 # ------------------- Load
 
-proc load*(ctx: var TPacketDataSource, dest: var string) =
+proc load*(ctx: TPacketDataSource, dest: var string) =
   ctx.toCtx.parser.getString(dest)
-  discard ctx.toCtx.parser.getTok()
+  ctx.toCtx.parser.getTok()
 
 # ------------------- Dump
 

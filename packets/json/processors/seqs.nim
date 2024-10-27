@@ -2,24 +2,24 @@ import ../context
 
 # ------------------- Load
 
-proc begin*[T](_: type[seq[T]], ctx: var TPacketDataSource) = 
+proc begin*[T](_: type[seq[T]], ctx: TPacketDataSource) = 
   if ctx.toCtx.parser.tok == tkBracketLe:
-    discard ctx.toCtx.parser.getTok()
+    ctx.toCtx.parser.getTok()
   else:
     raise newException(ValueError, "Not an array")
 
-proc next*[T](ctx: var TPacketDataSource, dest: var T): bool =
+proc next*[T](ctx: TPacketDataSource, dest: var T): bool =
   mixin load
   if ctx.toCtx.parser.tok != tkBracketRi:
     load(ctx, dest)
     if ctx.toCtx.parser.tok == tkComma:
-      discard ctx.toCtx.parser.getTok() #skipping "," token
+      ctx.toCtx.parser.getTok() #skipping "," token
     result = true
   else:
-    eat(ctx.toCtx.parser, tkBracketRi)
+    ctx.toCtx.parser.eat(tkBracketRi)
     result = false
 
-proc load*[T](ctx: var TPacketDataSource, dest: var seq[T]) =
+proc load*[T](ctx: TPacketDataSource, dest: var seq[T]) =
   var d: T
   seq[T].begin(ctx)
   while true:
@@ -29,10 +29,6 @@ proc load*[T](ctx: var TPacketDataSource, dest: var seq[T]) =
       break
 
 # ------------------- Dump
-
-const strLBracket = "["
-const strRBracket = "]"
-const strComma = ","
 
 proc dump*[T](t: seq[T], dest: var string) =
   mixin dump

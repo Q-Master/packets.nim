@@ -2,9 +2,9 @@ import ../context
 
 # ------------------- Load
 
-proc load*(ctx: var TPacketDataSource, dest: var bool) =
+proc load*(ctx: TPacketDataSource, dest: var bool) =
   ctx.toCtx.parser.getBool(dest)
-  discard ctx.toCtx.parser.getTok()
+  ctx.toCtx.parser.getTok()
 
 # ------------------- Dump
 

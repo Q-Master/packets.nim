@@ -7,5 +7,5 @@ type
   TArrayPacket* {.inheritable.} = object
     when defined(enablePacketIDs):
       id*: int32
-  TPacketDataSource* {.inheritable.} = object
-  TPacketFieldSetFunc* = proc (packet: var TPacket, data: var TPacketDataSource)
+  TPacketDataSource* {.inheritable.} = ref object
+  TPacketFieldSetFunc* = proc (packet: var TPacket, data: TPacketDataSource)

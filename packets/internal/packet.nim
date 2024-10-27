@@ -232,9 +232,8 @@ proc genDeserNode(nameIdent: NimNode, cases: openArray[NimNode], isArray = false
       ),
       nnkIdentDefs.newTree(
         ident "s",
-        nnkVarTy.newTree(
-          ident "TPacketDataSource"
-        ),
+        ident "TPacketDataSource"
+        ,
         newEmptyNode()
       )
     ),

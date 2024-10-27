@@ -18,7 +18,7 @@ proc tproc(p: Test1) =
 
 var t = now()
 var f: Test1
-for _ in 0..<100:
+for _ in 0..1000000:
   f = Test1.loads(tJson)
   f.tproc()
 
