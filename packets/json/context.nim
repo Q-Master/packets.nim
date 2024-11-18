@@ -5,6 +5,7 @@ export types
 
 type
   TokKind* = enum # must be synchronized with TJsonEventKind!
+    tkNone,
     tkError,
     tkEof,
     tkString,
@@ -252,6 +253,22 @@ proc getString*(self: JsonParser, dest: var string) =
     raise newException(ValueError, "Current token is not string: " & $self.tok)
 
 
+proc isFloat*(self: JsonParser): bool = 
+  var offset = 0
+  var ch: char
+  while true:
+    ch = self.source.readChar()
+    offset += 1
+    if ch in '0' .. '9':
+      continue
+    elif ch in {'.', 'E', 'e'}:
+      self.skip(-offset)
+      return true
+    else:
+      self.skip(-offset)
+      return false
+
+
 proc getInt*[T:SomeInteger](self: JsonParser, dest: var T) =
   if self.tok == tkInt:
     let (i, _) = self.parseInt()
@@ -451,8 +468,8 @@ proc skip*(s: TPacketDataSource) =
 
 proc open*(self: JsonParser, strm: Stream) =
   self.source = strm
-  self.tok = tkError
+  self.tok = tkNone
 
 proc close*(self: JsonParser) =
   self.source = nil
-  self.tok = tkError
+  self.tok = tkNone
