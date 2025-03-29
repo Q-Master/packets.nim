@@ -64,7 +64,7 @@ proc createType(
 ): (NimNode, seq[string], seq[string], OrderedTable[string, (seq[NimNode], NimNode, string)], NimNode) {.compiletime.} =
   let packetname = $packetIdent
   if packetCache.hasKey(packetname):
-    error("Redefining the " & packetname, body)
+    error("Redefining the " & packetname, packetIdent)
   var reclist = newNimNode(nnkRecList)
   var requiredFields: seq[string]
   var exportedFields: seq[string]
@@ -169,7 +169,7 @@ proc createType(
     nnkTypeDef.newTree(
       nnkPostfix.newTree(
         ident "*",
-        ident packetname
+        packetIdent
       ),
       newEmptyNode(),
       nnkObjectTy.newTree(
@@ -183,7 +183,7 @@ proc createType(
         reclist
       )
     )
-  )  
+  )
   result = (theType, requiredFields, exportedFields, allFields, baseFunctions)
   packetCache[packetname] = TCacheItem(
     basenames: basenames,
