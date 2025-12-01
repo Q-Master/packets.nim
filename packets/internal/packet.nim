@@ -38,11 +38,11 @@ proc genFieldNode(field: NimNode): NimNode {.compiletime.} =
     # var field*: type
     result = nnkPostfix.newTree(
       ident "*",
-      field[1]
+      field[1].copy
     )
   of nnkIdent:
     # var field: type
-    result = field
+    result = field.copy
   else:
     error("Unknown var section " & $field.kind, field)
 
@@ -64,7 +64,10 @@ proc createType(
 ): (NimNode, seq[string], seq[string], OrderedTable[string, (seq[NimNode], NimNode, string)], NimNode) {.compiletime.} =
   let packetname = $packetIdent
   if packetCache.hasKey(packetname):
-    error("Redefining the " & packetname, packetIdent)
+    when defined(nimsuggest):
+      packetCache.del(packetname)
+    else:
+      error("Redefining the " & packetname, packetIdent)
   var reclist = newNimNode(nnkRecList)
   var requiredFields: seq[string]
   var exportedFields: seq[string]
@@ -464,10 +467,10 @@ proc getNameAndBases(head: NimNode): (NimNode, seq[string]) {.compiletime.} =
   var basenames: seq[string]
   case head.kind
   of nnkIdent:
-    packetname = head
+    packetname = head.copy
   of nnkInfix:
     if eqIdent(head[0], "of"):
-      packetname = head[1]
+      packetname = head[1].copy
       case head[2].kind
       of nnkTupleConstr:
         for item in head[2].children:
@@ -480,7 +483,7 @@ proc getNameAndBases(head: NimNode): (NimNode, seq[string]) {.compiletime.} =
       else:
         error("Error in packet parents", head[2])
     else:
-      packetname = head[1]
+      packetname = head[1].copy
   else:
     error("Error in packet header", head)
   
