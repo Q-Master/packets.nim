@@ -1,4 +1,4 @@
-import std/[tables, times]
+import std/[times]
 import packets/packets
 import packets/json/serialization
 

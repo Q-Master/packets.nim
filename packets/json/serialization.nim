@@ -16,7 +16,7 @@ proc loads*[T: TPacket | TArrayPacket](p: type[T], jsStream: Stream): T =
   finally:
     ctx.parser.close()
 
-proc loads*[T: TPacket | TArrayPacket](p: type[T], js: string): T =
+proc loads*[T: TPacket | TArrayPacket](p: type[T], js: sink string): T =
   let jsStream = newStringStream(js)
   try:
     result = p.loads(jsStream)
@@ -33,7 +33,7 @@ proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], jsStream: Stream): seq[T
   finally:
     ctx.parser.close()
 
-proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], js: string): seq[T] =
+proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], js: sink string): seq[T] =
   let jsStream = newStringStream(js)
   try:
     result = p.loads(jsStream)

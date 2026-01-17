@@ -1,4 +1,4 @@
-import std/[tables, hashes, streams, macros]
+import std/[tables, streams, macros]
 import ./context
 
 type
@@ -126,7 +126,7 @@ proc load*(js: Stream): Json =
     parser.close()
 
 
-proc loads*(js: string): Json =
+proc loads*(js: sink string): Json =
   let strm = newStringStream(js)
   try:
     result = strm.load()
@@ -268,7 +268,7 @@ proc js*(v: int): Json = newJInt(v)
 proc js*(v: float): Json = newJFloat(v)
 proc js*(v: sink string): Json = newJString(v)
 proc js*[T](v: openArray[T]): Json
-proc js*[T](v: Table[string, T] | OrderedTable[string, T]): Json
+proc js*[T](v: sink Table[string, T] | sink OrderedTable[string, T]): Json
 proc js*(v: openArray[tuple[k: string, i: Json]]): Json
 proc js*[T: object](v: T): Json
 proc js*(v: ref object): Json
@@ -349,7 +349,7 @@ proc js*[T](v: openArray[T]): Json =
     result.add(i)
 
 
-proc js*[T](v: Table[string, T] | OrderedTable[string, T]): Json =
+proc js*[T](v: sink Table[string, T] | sink OrderedTable[string, T]): Json =
   result = newJObject()
   for k,i in v.pairs:
     result[k] = i
