@@ -3,8 +3,8 @@ import ../context
 
 # ------------------- Load
 
-proc load*(ctx: TPacketDataSource, dest: var string) =
-  ctx.toCtx.parser.getString(dest)
+proc load*(_: typedesc[string], ctx: TPacketDataSource): string =
+  result = ctx.toCtx.parser.getString()
   ctx.toCtx.parser.getTok()
 
 # ------------------- Dump

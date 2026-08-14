@@ -1,8 +1,10 @@
 # Package
 description = "Pure Nim declarative packets system for serializing/deserializing"
-version     = "2.3.3"
+version     = "2.4.0"
 license     = "MIT"
 author      = "Vladimir Berezenko <qmaster2000@gmail.com>"
+srcDir      = "packets"
+
 
 # Dependencies
 requires "nim >= 2.0.2"
@@ -17,4 +19,4 @@ task test, "tests":
   
 task bench, "benchmarks":
   echo "Running stdlib benchmark"
-  exec "nim c -r -d:release --nimcache=./.nimcache/ tests/benchmark.nim"
+  exec "nim c -r -d:release -d:danger -d:lto --nimcache=./.nimcache/ tests/benchmark.nim"

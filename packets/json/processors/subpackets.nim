@@ -3,19 +3,19 @@ import ../context
 
 # ------------------- Load
 
-proc load*[T: TPacket](ctx: TPacketDataSource, dest: var T) =
+proc load*[T: TPacket](_: typedesc[T], ctx: TPacketDataSource): T =
   mixin load
   if ctx.toCtx.parser.tok == tkCurlyLe:
-    var req = dest.requiredFields()
+    result.new
+    var req = T.requiredFields()
     ctx.toCtx.parser.getTok()
     var currKey: string
     var res: int
     while ctx.toCtx.parser.tok != tkCurlyRi:
-      currKey.setLen(0)
-      ctx.toCtx.parser.getString(currKey)
+      currKey = ctx.toCtx.parser.getString()
       ctx.toCtx.parser.getTok()
       ctx.toCtx.parser.eat(tkColon)
-      res = load(currKey, dest, ctx)
+      res = load(currKey, result, ctx)
       if res == 1:
         req.dec()
       elif res == -1:
@@ -29,16 +29,17 @@ proc load*[T: TPacket](ctx: TPacketDataSource, dest: var T) =
   else:
     raise newException(ValueError, "Not an object")
 
-proc load*[T: TArrayPacket](ctx: TPacketDataSource, dest: var T) =
+proc load*[T: TArrayPacket](_: typedesc[T], ctx: TPacketDataSource): T =
   mixin load
   if ctx.toCtx.parser.tok == tkBracketLe:
     var idx = 0
-    var req = dest.requiredFields()
+    result.new
+    var req = T.requiredFields()
     ctx.toCtx.parser.getTok()
     while ctx.toCtx.parser.tok != tkBracketRi:
       #ArrayPacket's fields are all required fields
       if idx < req:
-        discard load(idx, dest, ctx)
+        discard load(idx, result, ctx)
       else:
         ctx.toCtx.parser.getTok() #skipping extra data
       if ctx.toCtx.parser.tok != tkComma:

@@ -7,16 +7,12 @@ type
 
 # ------------------- Load
 
-proc load*(ctx: TPacketDataSource, dest: var Time) =
-  var f: float
-  ctx.toCtx.parser.getFloat(f)
-  dest = fromUnixFloat(f)
+proc load*(_: typedesc[Time], ctx: TPacketDataSource): Time =
+  result = (ctx.toCtx.parser.getFloat[float]()).fromUnixFloat()
   ctx.toCtx.parser.getTok()
 
-proc load*(ctx: TPacketDataSource, dest: var DateTime) =
-  var f: float
-  ctx.toCtx.parser.getFloat(f)
-  dest = fromUnixFloat(f).local()
+proc load*(_: typedesc[DateTime], ctx: TPacketDataSource): DateTime =
+  result = (ctx.toCtx.parser.getFloat[float]()).fromUnixFloat().local()
   ctx.toCtx.parser.getTok()
 
 # ------------------- Dump

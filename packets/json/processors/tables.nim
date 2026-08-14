@@ -3,23 +3,23 @@ import ../context
 
 # ------------------- Load
 
-template getKey[T: string](ctx: TPacketDataSource, k: var T) = ctx.toCtx.parser.getString(k)
-template getKey[T: SomeInteger](ctx: TPacketDataSource, k: var T) = ctx.toCtx.parser.getInt[T](k)
-template getKey[T: SomeFloat](ctx: TPacketDataSource, k: var T) = ctx.toCtx.parser.getFloat[T](k)
+template getKey[T: string](ctx: TPacketDataSource, _: typedesc[T]) = ctx.toCtx.parser.getString()
+template getKey[T: SomeInteger](ctx: TPacketDataSource, _: typedesc[T]) = ctx.toCtx.parser.getInt[T]()
+template getKey[T: SomeFloat](ctx: TPacketDataSource, _: typedesc[T]) = ctx.toCtx.parser.getFloat[T]()
 
 
-proc load*[U: string|SomeInteger|SomeFloat, T](ctx: TPacketDataSource, dest: var Table[U, T]) =
+proc load*[U: string|SomeInteger|SomeFloat, T](_: typedesc[Table[U, T]], ctx: TPacketDataSource): Table[U, T] =
   mixin load
   var d: T
   if ctx.toCtx.parser.tok == tkCurlyLe:
     ctx.toCtx.parser.getTok()
     var currKey: U
     while ctx.toCtx.parser.tok != tkCurlyRi:
-      ctx.getKey(currKey)
+      currKey = ctx.getKey(U)
       ctx.toCtx.parser.getTok()
       ctx.toCtx.parser.eat(tkColon)
       ctx.load(d)
-      dest[currKey] = d 
+      result[currKey] = d
       if ctx.toCtx.parser.tok != tkComma:
         break
       ctx.toCtx.parser.getTok() #skipping "," token

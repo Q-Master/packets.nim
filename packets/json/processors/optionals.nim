@@ -4,27 +4,23 @@ import ../context
 
 # ------------------- Load
 
-proc load*[T: TPacket](ctx: TPacketDataSource, dest: var Option[T]) =
+proc load*[T: TPacket](_: typedesc[Option[T]], ctx: TPacketDataSource): Option[T] =
   mixin load
   if ctx.toCtx.parser.tok == tkNull:
-    dest = none(T)
+    result = none(T)
     ctx.toCtx.parser.getNull()
     ctx.toCtx.parser.getTok()
   else:
-    var dd: T
-    ctx.load(dd)
-    dest = dd.option
+    result = T.load(ctx).option
 
-proc load*[T](ctx: TPacketDataSource, dest: var Option[T]) =
+proc load*[T](_: typedesc[Option[T]], ctx: TPacketDataSource): Option[T] =
   mixin load
   if ctx.toCtx.parser.tok == tkNull:
-    dest = none(T)
+    result = none(T)
     ctx.toCtx.parser.getNull()
     ctx.toCtx.parser.getTok()
   else:
-    var dd: T
-    ctx.load(dd)
-    dest = dd.option
+    result = T.load(ctx).option
 
 # ------------------- Dump
 

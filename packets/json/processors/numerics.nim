@@ -2,12 +2,12 @@ import ../context
 
 # ------------------- Load
 
-proc load*[T: SomeInteger](ctx: TPacketDataSource, dest: var T) =
-  ctx.toCtx.parser.getInt(dest)
+proc load*[T: SomeInteger](_: typedesc[T], ctx: TPacketDataSource): T =
+  result = ctx.toCtx.parser.getInt()
   ctx.toCtx.parser.getTok()
 
-proc load*[T: SomeFloat](ctx: TPacketDataSource, dest: var T) =
-  ctx.toCtx.parser.getFloat(dest)
+proc load*[T: SomeFloat](_: typedesc[T], ctx: TPacketDataSource): T =
+  result = ctx.toCtx.parser.getFloat()
   ctx.toCtx.parser.getTok()
 
 # ------------------- Dump

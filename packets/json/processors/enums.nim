@@ -2,10 +2,8 @@ import ../context
 
 # ------------------- Load
 
-proc load*[T: enum](ctx: TPacketDataSource, dest: var T) =
-  var i: int
-  ctx.toCtx.parser.getInt(i)
-  dest = T(i)
+proc load*[T: enum](_: typedesc[T], ctx: TPacketDataSource): T =
+  result = T(ctx.toCtx.parser.getInt[int]())
   ctx.toCtx.parser.getTok()
 
 # ------------------- Dump

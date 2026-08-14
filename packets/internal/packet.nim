@@ -175,15 +175,17 @@ proc createType(
         packetIdent
       ),
       newEmptyNode(),
-      nnkObjectTy.newTree(
-        newEmptyNode(),
-        nnkOfInherit.newTree(
-          if isArray:
-            ident "TArrayPacket"
-          else:
-            ident "TPacket"
-        ),
-        reclist
+      nnkRefTy.newTree(
+        nnkObjectTy.newTree(
+          newEmptyNode(),
+          nnkOfInherit.newTree(
+            if isArray:
+              ident "TArrayPacket"
+            else:
+              ident "TPacket"
+          ),
+          reclist
+        )
       )
     )
   )
@@ -248,18 +250,14 @@ proc genDeserNode(nameIdent: NimNode, cases: openArray[NimNode], isArray = false
   )
 
 
-proc genDeserCase(cn: NimNode, fn: openArray[NimNode], isRequired: bool): NimNode {.compiletime.} =
+proc genDeserCase(cn: NimNode, fn: openArray[NimNode], ft: NimNode, isRequired: bool): NimNode {.compiletime.} =
   let dotexpr = genFieldaccessor(fn, (ident "p").option)
+  let loadStmt = quote do:
+    `dotexpr` = `ft`.load(s)
   result = nnkOfBranch.newTree(
     cn,
     nnkStmtList.newTree(
-      nnkCall.newTree(
-        nnkDotExpr.newTree(
-          ident "s",
-          ident "load"
-        ),
-        dotexpr
-      ),
+      loadStmt,
       nnkAsgn.newTree(
         ident "result",
         (if isRequired: newIntLitNode(1) else: newIntLitNode(0))
@@ -278,9 +276,9 @@ proc createDeserData(
   let nameIdent = ident(name)
   var cases: seq[NimNode]
   for fn in exportedFields:
-    let (fieldIdents, _, fieldName) = fields[fn]
+    let (fieldIdents, fieldType, fieldName) = fields[fn]
     cases.add(
-      genDeserCase(newStrLitNode(fieldName), fieldIdents, fieldName in requiredFields)
+      genDeserCase(newStrLitNode(fieldName), fieldIdents, fieldType, fieldName in requiredFields)
     )
   result.add(
     genDeserNode(nameIdent, cases, false)
@@ -306,9 +304,9 @@ proc createArrayDeserData(
   var cases: seq[NimNode]
   var idx = 0
   for fn in exportedFields:
-    let (fieldIdents, _, _) = fields[fn]
+    let (fieldIdents, fieldType, _) = fields[fn]
     cases.add(
-      genDeserCase(newIntLitNode(idx), fieldIdents, true)
+      genDeserCase(newIntLitNode(idx), fieldIdents, fieldType, true)
     )
     idx.inc()
   result.add(

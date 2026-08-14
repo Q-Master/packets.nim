@@ -1,9 +1,9 @@
 import std/[streams]
-import ./processors/[booleans, numerics, strs, datetimes, enums, optionals, seqs, subpackets, tables]
+import ./processors/[booleans, numerics, strs, datetimes, enums, optionals, seqs, sets, subpackets, tables]
 import ./context
 import ../internal/types
 
-export booleans, numerics, strs, datetimes, enums, optionals, seqs, subpackets, tables
+export booleans, numerics, strs, datetimes, enums, optionals, seqs, sets, subpackets, tables
 
 # ------------------- Load
 
@@ -12,7 +12,7 @@ proc loads*[T: TPacket | TArrayPacket](p: type[T], jsStream: Stream): T =
   ctx.parser.open(jsStream)
   try:
     ctx.parser.getTok()
-    ctx.load(result)
+    result = T.load(ctx)
   finally:
     ctx.parser.close()
 
@@ -29,7 +29,7 @@ proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], jsStream: Stream): seq[T
   ctx.parser.open(jsStream)
   try:
     ctx.parser.getTok()
-    ctx.load(result)
+    result = seq[T].load(ctx)
   finally:
     ctx.parser.close()
 
@@ -43,13 +43,11 @@ proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], js: sink string): seq[T]
 
 iterator items*[T](p: type[seq[T]], jsStream: Stream): T =
   var ctx = newDataSourceJson()
-  var d: T
   ctx.parser.open(jsStream)
   try:
     ctx.parser.getTok()
-    p.begin(ctx)
-    while ctx.next(d):
-      yield d
+    for i in seq[T].items(ctx):
+      yield i
   finally:
     ctx.parser.close()
 

@@ -1,7 +1,9 @@
 import std/[streams, unicode, strutils]
 import ../internal/types
 
+
 export types
+
 
 type
   TokKind* = enum # must be synchronized with TJsonEventKind!
@@ -28,7 +30,6 @@ type
 
   TPacketDataSourceJson* = ref object of TPacketDataSource
     parser*: JsonParser
-
 
 
 const strLCurly* = "{"
@@ -245,9 +246,9 @@ proc parseInt(self: JsonParser): (int, int) =
   result = (res, multiplier)
 
 
-proc getString*(self: JsonParser, dest: var string) =
+proc getString*(self: JsonParser): string =
   if self.tok == tkString:
-    self.parseString(dest)
+    self.parseString(result)
     self.tok = tkError
   else:
     raise newException(ValueError, "Current token is not string: " & $self.tok)
@@ -269,19 +270,19 @@ proc isFloat*(self: JsonParser): bool =
       return false
 
 
-proc getInt*[T:SomeInteger](self: JsonParser, dest: var T) =
+proc getInt*[T:SomeInteger](self: JsonParser): T =
   if self.tok == tkInt:
     let (i, _) = self.parseInt()
     let ch = self.source.peekChar()
     if ch in {'.', 'E', 'e'}:
       raise newException(ValueError, "Floating point number found")
-    dest = T(i)
+    result = T(i)
     self.tok = tkError
   else:
     raise newException(ValueError, "Current token is not integer: " & $self.tok)
 
 
-proc getFloat*[T: SomeFloat](self: JsonParser, dest: var T) =
+proc getFloat*[T: SomeFloat](self: JsonParser): T =
   var pos: int
   var f = 0.0
   var mantissa = 0
@@ -304,17 +305,17 @@ proc getFloat*[T: SomeFloat](self: JsonParser, dest: var T) =
         f /= exponent.float
     else:
       self.source.setPosition(pos)
-    dest = T(f)
+    result = T(f)
     self.tok = tkError
   else:
     raise newException(ValueError, "Current token is not float: " & $self.tok)
 
 
-proc getBool*(self: JsonParser, dest: var bool) =
+proc getBool*(self: JsonParser): bool =
   if self.tok == tkTrue:
-    dest = true
+    result = true
   elif self.tok == tkFalse:
-    dest = false
+    result = false
   else:
     raise newException(ValueError, "Current token is not bool: " & $self.tok)
   self.skipIdents()
