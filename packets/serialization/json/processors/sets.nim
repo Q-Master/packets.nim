@@ -28,7 +28,6 @@ proc load*[T](_: typedesc[OrderedSet[T]], ctx: TPacketDataSource): OrderedSet[T]
   for i in seq[T].items(ctx):
     result.add(i)
 
-
 # ------------------- Dump
 
 proc dump*[T](t: SomeSet[T], dest: var string) =

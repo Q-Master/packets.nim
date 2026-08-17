@@ -1,5 +1,5 @@
 import std/[streams, unicode, strutils]
-import ../internal/types
+import ../../types
 
 
 export types

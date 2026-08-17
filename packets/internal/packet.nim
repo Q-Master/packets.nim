@@ -3,9 +3,14 @@ import ./util/crc32
 
 
 type
+  TFieldItem* = object
+    names: seq[NimNode]
+    fType: NimNode
+    nameAs: string
+
   TCacheItem = object
     basenames: seq[string]
-    allFields: OrderedTable[string, (seq[NimNode], NimNode, string)]
+    allFields: OrderedTable[string, TFieldItem]
     exportedFields: seq[string]
     requiredFields: seq[string]
 
@@ -45,6 +50,7 @@ proc genFieldNode(field: NimNode): NimNode {.compiletime.} =
     result = field.copy
   else:
     error("Unknown var section " & $field.kind, field)
+  result.copyLineInfo(field)
 
 
 proc genFieldaccessor(allIdents: openArray[NimNode], prefix: Option[NimNode] = NimNode.none): NimNode =
@@ -57,11 +63,11 @@ proc genFieldaccessor(allIdents: openArray[NimNode], prefix: Option[NimNode] = N
       result = newDotExpr(result, allIdents[idx])
 
 
-proc createType(
+proc createType*(
   packetIdent: NimNode, basenames: seq[string], 
   body: NimNode,
   isArray = false
-): (NimNode, seq[string], seq[string], OrderedTable[string, (seq[NimNode], NimNode, string)], NimNode) {.compiletime.} =
+): (NimNode, seq[string], seq[string], OrderedTable[string, TFieldItem], NimNode) {.compiletime.} =
   let packetname = $packetIdent
   if packetCache.hasKey(packetname):
     when defined(nimsuggest):
@@ -71,7 +77,7 @@ proc createType(
   var reclist = newNimNode(nnkRecList)
   var requiredFields: seq[string]
   var exportedFields: seq[string]
-  var allFields: OrderedTable[string, (seq[NimNode], NimNode, string)]
+  var allFields: OrderedTable[string, TFieldItem]
   var baseFunctions = newStmtList()
   var allFieldsHash: HashSet[string]
   let tIdent = ident "t"
@@ -83,15 +89,15 @@ proc createType(
     let basenameident = ident(basename.normalize())
     for fname, fdata in t.allFields.pairs:
       var newData = fdata
-      let ftype = newData[1]
-      if fname in allFieldsHash or newData[2] in allFieldsHash:
-        error("Duplicate field " & fname, newData[0][^1])
-      newData[0].insert(basenameident, 0)
+      if fname in allFieldsHash or newData.nameAs in allFieldsHash:
+        error("Duplicate field " & fname, newData.names[^1])
+      newData.names.insert(basenameident, 0)
       allFields[fname] = newData
       allFieldsHash.incl(fname)
-      allFieldsHash.incl(newData[2])
-      let fpath = genFieldaccessor(newData[0], tIdent.option)
+      allFieldsHash.incl(newData.nameAs)
+      let fpath = genFieldaccessor(newData.names, tIdent.option)
       let fieldIdent = ident fname
+      let ftype = newData.fType
       baseFunctions.add(
         quote do:
           proc `fieldIdent`*(`tIdent`: `packetIdent`): `ftype` = `fpath`
@@ -133,7 +139,7 @@ proc createType(
             requiredFields.add($fieldNode[1])
           elif isArray:
             error("Array packets can't contain optional fields", trueElem)
-          allFields[$fieldNode[1]] = (@[fieldNode[1]], trueElem[1], $fieldNode[1])
+          allFields[$fieldNode[1]] = TFieldItem(names: @[fieldNode[1]], fType: trueElem[1], nameAs: $fieldNode[1])
           allFieldsHash.incl($fieldNode[1])
           exportedFields.add($fieldNode[1])
         else:
@@ -161,7 +167,7 @@ proc createType(
           elif isArray:
             error("Array packets can't contain optional fields", trueElem)
           exportedFields.add($fieldNode[1])
-        allFields[$fieldNode[1]] = (@[fieldNode[1]], trueElem[1], asName)
+        allFields[$fieldNode[1]] = TFieldItem(names: @[fieldNode[1]], fType: trueElem[1], nameAs: asName)
         allFieldsHash.incl($fieldNode[1])
         allFieldsHash.incl(asName)
       else:
@@ -189,6 +195,7 @@ proc createType(
       )
     )
   )
+  theType.copyLineInfo(packetIdent)
   result = (theType, requiredFields, exportedFields, allFields, baseFunctions)
   packetCache[packetname] = TCacheItem(
     basenames: basenames,
@@ -266,19 +273,20 @@ proc genDeserCase(cn: NimNode, fn: openArray[NimNode], ft: NimNode, isRequired: 
   )
 
 
-proc createDeserData(
+proc createDeserData*(
   name: string,
   exportedFields: openArray[string],
-  fields: OrderedTable[string, (seq[NimNode], NimNode, string)], 
+  fields: OrderedTable[string, TFieldItem],
   requiredFields: openArray[string]
 ): NimNode {.compiletime.} =
   result = newStmtList()
   let nameIdent = ident(name)
   var cases: seq[NimNode]
+  var currField: TFieldItem
   for fn in exportedFields:
-    let (fieldIdents, fieldType, fieldName) = fields[fn]
+    currField = fields[fn]
     cases.add(
-      genDeserCase(newStrLitNode(fieldName), fieldIdents, fieldType, fieldName in requiredFields)
+      genDeserCase(newStrLitNode(currField.nameAs), currField.names, currField.fType, currField.nameAs in requiredFields)
     )
   result.add(
     genDeserNode(nameIdent, cases, false)
@@ -293,20 +301,21 @@ proc createDeserData(
   )
 
 
-proc createArrayDeserData(
+proc createArrayDeserData*(
   name: string, 
   exportedFields: openArray[string],
-  fields: OrderedTable[string, (seq[NimNode], NimNode, string)], 
+  fields: OrderedTable[string, TFieldItem],
   requiredFieldsAmount: int
 ): NimNode {.compiletime.} =
   result = newStmtList()
   let nameIdent = ident(name)
   var cases: seq[NimNode]
   var idx = 0
+  var currField: TFieldItem
   for fn in exportedFields:
-    let (fieldIdents, fieldType, _) = fields[fn]
+    currField = fields[fn]
     cases.add(
-      genDeserCase(newIntLitNode(idx), fieldIdents, fieldType, true)
+      genDeserCase(newIntLitNode(idx), currField.names, currField.fType, true)
     )
     idx.inc()
   result.add(
@@ -395,22 +404,23 @@ proc buildYield(fn: string, isRequired: bool): NimNode =
   )
 
 
-proc createSerData(
+proc createSerData*(
   name: string,
   exportedFields: openArray[string],
-  fields: OrderedTable[string, (seq[NimNode], NimNode, string)], 
+  fields: OrderedTable[string, TFieldItem],
   requiredFields: openArray[string]
 ): NimNode {.compiletime.} =
   result = newStmtList()
   var allYields = newStmtList()
   var cases: seq[NimNode]
+  var currField: TFieldItem
   for fn in exportedFields:
-    let (field, _, fname) = fields[fn]
+    currField = fields[fn]
     allYields.add(
-      buildYield(fname, fname in requiredFields)
+      buildYield(currField.nameAs, currField.nameAs in requiredFields)
     )
     cases.add(
-      genSerCase(newStrLitNode(fname), field)
+      genSerCase(newStrLitNode(currField.nameAs), currField.names)
     )
   result.add(
     nnkIteratorDef.newTree(
@@ -441,18 +451,17 @@ proc createSerData(
   )
 
 
-proc createArraySerData(
+proc createArraySerData*(
   name: string,
   exportedFields: openArray[string],
-  fields: OrderedTable[string, (seq[NimNode], NimNode, string)]
+  fields: OrderedTable[string, TFieldItem]
 ): NimNode {.compiletime.} =
   result = newStmtList()
   var idx = 0
   var cases: seq[NimNode]
   for fn in exportedFields:
-    let (field, _, _) = fields[fn]
     cases.add(
-      genSerCase(newIntLitNode(idx), field)
+      genSerCase(newIntLitNode(idx), fields[fn].names)
     )
     idx.inc()
   result.add(
@@ -460,7 +469,7 @@ proc createArraySerData(
   )
 
 
-proc getNameAndBases(head: NimNode): (NimNode, seq[string]) {.compiletime.} =
+proc getNameAndBases*(head: NimNode): (NimNode, seq[string]) {.compiletime.} =
   var packetname: NimNode
   var basenames: seq[string]
   case head.kind
@@ -489,29 +498,3 @@ proc getNameAndBases(head: NimNode): (NimNode, seq[string]) {.compiletime.} =
     if not packetCache.hasKey(basename):
       error("No such base type " & basename, head)
   result = (packetname, basenames)
-
-
-macro packet*(head, body: untyped): untyped =
-  let (packetname, basenames) = getNameAndBases(head)
-  result = newStmtList()
-  let (typeNode, requiredFields, exportedFields, allFields, baseFunctions) = createType(packetname, basenames, body)
-  typeNode.setLineInfo(head.lineInfoObj)
-  result.add(typeNode)
-  result.add(baseFunctions)
-  let deserData = createDeserData($packetname, exportedFields, allFields, requiredFields)
-  result.add(deserData)
-  let serData = createSerData($packetname, exportedFields, allFields, requiredFields)
-  result.add(serData)
-
-
-macro arrayPacket*(head, body: untyped): untyped =
-  let (packetname, basenames) = getNameAndBases(head)
-  result = newStmtList()
-  let (typeNode, requiredFields, exportedFields, allFields, baseFunctions) = createType(packetname, basenames, body, true)
-  typeNode.setLineInfo(head.lineInfoObj)
-  result.add(typeNode)
-  result.add(baseFunctions)
-  let deserData = createArrayDeserData($packetname, exportedFields, allFields, requiredFields.len())
-  result.add(deserData)
-  let serData = createArraySerData($packetname, exportedFields, allFields)
-  result.add(serData)

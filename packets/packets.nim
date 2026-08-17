@@ -1,14 +1,16 @@
-import std/[options, strutils, tables, sets, macros]
-import ./internal/types
+import std/[options, strutils, tables, sets]
+import ./[types, macros]
 import ./internal/packet
 export TPacket, TPacketDataSource, TPacketFieldSetFunc, asName, packet, tables, sets, macros
 export TArrayPacket, arrayPacket
 
-proc indent(s: var string, i: int)
+
+func indent(s: var string, i: int) {.inline.}
+
+
 proc pretty*[T: TPacket | TArrayPacket](p: T, ci=1): string =
   var str = "packet " & $type(T)
-  var req = p.requiredFields()
-  let fields = p.packetFields()
+  let fields = p.fields()
   str.add("\n")
   indent(str, ci)
   when defined(enablePacketIDs):
@@ -23,10 +25,11 @@ proc pretty*[T: TPacket | TArrayPacket](p: T, ci=1): string =
         str.add(k & " = " & $v)
   result=str
 
+
 #proc `$`*[T: TPacket | TArrayPacket](p: T): string =
 #  result = p.pretty()
 
 #--------------------------------------------------------------------------#
-proc indent(s: var string, i: int) =
+func indent(s: var string, i: int) {.inline.} =
   s.add(spaces(i*4))
 

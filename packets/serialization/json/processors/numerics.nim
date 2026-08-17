@@ -3,11 +3,12 @@ import ../context
 # ------------------- Load
 
 proc load*[T: SomeInteger](_: typedesc[T], ctx: TPacketDataSource): T =
-  result = ctx.toCtx.parser.getInt()
+  result = getInt[T](ctx.toCtx.parser)
   ctx.toCtx.parser.getTok()
 
+
 proc load*[T: SomeFloat](_: typedesc[T], ctx: TPacketDataSource): T =
-  result = ctx.toCtx.parser.getFloat()
+  result = getFloat[T](ctx.toCtx.parser)
   ctx.toCtx.parser.getTok()
 
 # ------------------- Dump

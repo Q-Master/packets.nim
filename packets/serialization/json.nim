@@ -1,5 +1,70 @@
 import std/[tables, streams, macros]
-import ./context
+import json/context
+import json/processors/[booleans, numerics, strs, datetimes, enums, optionals, seqs, sets, subpackets, tables]
+
+
+export booleans, numerics, strs, datetimes, enums, optionals, seqs, sets, subpackets, tables
+
+
+# ------------------- Load
+
+proc loads*[T: TPacket | TArrayPacket](p: type[T], jsStream: Stream): T =
+  var ctx = newDataSourceJson()
+  ctx.parser.open(jsStream)
+  try:
+    ctx.parser.getTok()
+    result = T.load(ctx)
+  finally:
+    ctx.parser.close()
+
+
+proc loads*[T: TPacket | TArrayPacket](p: type[T], js: sink string): T =
+  let jsStream = newStringStream(js)
+  try:
+    result = p.loads(jsStream)
+  finally:
+    jsStream.close()
+
+
+proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], jsStream: Stream): seq[T] =
+  var ctx = newDataSourceJson()
+  ctx.parser.open(jsStream)
+  try:
+    ctx.parser.getTok()
+    result = seq[T].load(ctx)
+  finally:
+    ctx.parser.close()
+
+
+proc loads*[T: TPacket | TArrayPacket](p: type[seq[T]], js: sink string): seq[T] =
+  let jsStream = newStringStream(js)
+  try:
+    result = p.loads(jsStream)
+  finally:
+    jsStream.close()
+
+
+iterator items*[T](p: type[seq[T]], jsStream: Stream): T =
+  var ctx = newDataSourceJson()
+  ctx.parser.open(jsStream)
+  try:
+    ctx.parser.getTok()
+    for i in seq[T].items(ctx):
+      yield i
+  finally:
+    ctx.parser.close()
+
+# ------------------- Dump
+
+proc dumps*[T: TPacket | TArrayPacket](p: T): string =
+  mixin dump
+  p.dump(result)
+
+
+proc dumps*[T: TPacket | TArrayPacket](p: seq[T]): string =
+  mixin dump
+  p.dump(result)
+
 
 type
   JsonType* = enum
@@ -34,32 +99,13 @@ type
   JsonValueError* = object of JsonError
 
 
-proc newJObject*(): Json =
-  result = Json(jt: JT_OBJ, o: initOrderedTable[string, Json](2))
-
-
-proc newJArray*(): Json =
-  result = Json(jt: JT_ARRAY, a: @[])
-
-
-proc newJNull*(): Json =
-  result = Json(jt: JT_NULL)
-
-
-proc newJBool*(b: bool): Json =
-  result = Json(jt: JT_BOOL, b: b)
-
-
-proc newJFloat*(f: float): Json =
-  result = Json(jt: JT_FLOAT, f: f)
-
-
-proc newJInt*(i: int): Json =
-  result = Json(jt: JT_INT, i: i)
-
-
-proc newJString*(s: sink string): Json =
-  result = Json(jt: JT_STRING, s: s)
+func newJObject*(): Json {.inline.} = Json(jt: JT_OBJ, o: initOrderedTable[string, Json](2))
+func newJArray*(): Json {.inline.} = Json(jt: JT_ARRAY, a: @[])
+func newJNull*(): Json {.inline.} = Json(jt: JT_NULL)
+func newJBool*(b: bool): Json {.inline.} = Json(jt: JT_BOOL, b: b)
+func newJFloat*(f: float): Json {.inline.} = Json(jt: JT_FLOAT, f: f)
+func newJInt*(i: int): Json {.inline.} = Json(jt: JT_INT, i: i)
+func newJString*(s: sink string): Json {.inline.} = Json(jt: JT_STRING, s: s)
 
 
 proc parse(parser: JsonParser, firstRun: bool = false): Json =
@@ -76,8 +122,7 @@ proc parse(parser: JsonParser, firstRun: bool = false): Json =
     parser.eat(tkCurlyLe)
     var currKey: string
     while parser.tok != tkCurlyRi:
-      currKey.setLen(0)
-      parser.getString(currKey)
+      currKey = parser.getString()
       parser.getTok()
       parser.eat(tkColon)
       val = parser.parse()
@@ -101,17 +146,17 @@ proc parse(parser: JsonParser, firstRun: bool = false): Json =
   of tkInt:
     if parser.isFloat():
       result = Json(jt: JT_FLOAT)
-      parser.getFloat(result.f)
+      result.f = getFloat[float](parser)
     else:
       result = Json(jt: JT_INT)
-      parser.getInt(result.i)
+      result.i = getInt[int](parser)
     parser.getTok()
   of tkFalse, tkTrue:
     result = newJBool(parser.tok == tkTrue)
     parser.getTok()
   of tkString:
     result = Json(jt: JT_STRING)
-    parser.getString(result.s)
+    result.s = parser.getString()
     parser.getTok()
   else:
     parser.getTok()
@@ -133,7 +178,6 @@ proc loads*(js: sink string): Json =
   finally:
     strm.close()
 
-#let CR = '\n'
 
 proc dump(json: Json, to: Stream, currIdent: var int, identStep: int) =
   #let yesCR = identStep > 0
@@ -191,24 +235,24 @@ proc dumps*(json: Json, ident: int = 0): string =
   to.close()
 
 
-proc isNil*(json: Json): bool = json.jt == JT_NULL
+func isNil*(json: Json): bool {.inline.} = json.jt == JT_NULL
 
 
-proc asBool*(json: Json): bool =
+func asBool*(json: Json): bool {.inline.} =
   if json.jt == JT_BOOL:
     result = json.b
   else:
     raise newException(JsonValueError, "json must be bool")
 
 
-proc asInt*(json: Json): int =
+func asInt*(json: Json): int {.inline.} =
   if json.jt == JT_INT:
     result = json.i
   else:
     raise newException(JsonValueError, "json must be a string")
 
 
-proc asFloat*(json: Json): float =
+func asFloat*(json: Json): float {.inline.} =
   if json.jt == JT_INT:
     result = json.i.float
   elif json.jt == JT_FLOAT:
@@ -217,7 +261,7 @@ proc asFloat*(json: Json): float =
     raise newException(JsonValueError, "json must be a string")
 
 
-proc asString*(json: Json): string =
+func asString*(json: Json): string {.inline.} =
   if json.jt == JT_STRING:
     result = json.s
   else:
@@ -262,16 +306,16 @@ proc len*(json: Json): int =
   
 
 template js*(v: Json): Json = v
-proc js*(v: type(nil)): Json = newJNull()
-proc js*(v: bool): Json = newJBool(v)
-proc js*(v: int): Json = newJInt(v)
-proc js*(v: float): Json = newJFloat(v)
-proc js*(v: sink string): Json = newJString(v)
-proc js*[T](v: openArray[T]): Json
-proc js*[T](v: sink Table[string, T] | sink OrderedTable[string, T]): Json
-proc js*(v: openArray[tuple[k: string, i: Json]]): Json
-proc js*[T: object](v: T): Json
-proc js*(v: ref object): Json
+func js*(v: type(nil)): Json {.inline.} = newJNull()
+func js*(v: bool): Json {.inline.} = newJBool(v)
+func js*(v: int): Json {.inline.} = newJInt(v)
+func js*(v: float): Json {.inline.} = newJFloat(v)
+func js*(v: sink string): Json {.inline.} = newJString(v)
+func js*[T](v: openArray[T]): Json {.inline.}
+func js*[T](v: sink Table[string, T] | sink OrderedTable[string, T]): Json {.inline.}
+func js*(v: openArray[tuple[k: string, i: Json]]): Json {.inline.}
+func js*[T: object](v: T): Json {.inline.}
+func js*(v: ref object): Json {.inline.}
 
 
 proc `[]=`*(json: Json, k: string, v: type(nil)) =
@@ -343,31 +387,32 @@ proc add*(json: Json, v: Json) =
   else:
     raise newException(JsonValueError, "json must be an array")
 
-proc js*[T](v: openArray[T]): Json =
+
+func js*[T](v: openArray[T]): Json {.inline.} =
   result = newJArray()
   for i in v:
     result.add(i)
 
 
-proc js*[T](v: sink Table[string, T] | sink OrderedTable[string, T]): Json =
+func js*[T](v: sink Table[string, T] | sink OrderedTable[string, T]): Json {.inline.} =
   result = newJObject()
   for k,i in v.pairs:
     result[k] = i
 
 
-proc js*(v: openArray[tuple[k: string, i: Json]]): Json =
+func js*(v: openArray[tuple[k: string, i: Json]]): Json {.inline.} =
   result = newJObject()
   for k, i in v.items: 
     result.o[k] = i
 
 
-proc js*[T: object](v: T): Json =
+func js*[T: object](v: T): Json {.inline.} =
   result = newJObject()
   for k, i in v.fieldPairs: 
     result[k] = i
 
 
-proc js*(v: ref object): Json =
+func js*(v: ref object): Json {.inline.} =
   if v.isNil:
     result = newJNull()
   else:

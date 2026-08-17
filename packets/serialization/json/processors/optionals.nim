@@ -13,6 +13,7 @@ proc load*[T: TPacket](_: typedesc[Option[T]], ctx: TPacketDataSource): Option[T
   else:
     result = T.load(ctx).option
 
+
 proc load*[T](_: typedesc[Option[T]], ctx: TPacketDataSource): Option[T] =
   mixin load
   if ctx.toCtx.parser.tok == tkNull:

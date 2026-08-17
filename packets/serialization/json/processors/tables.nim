@@ -3,23 +3,23 @@ import ../context
 
 # ------------------- Load
 
-template getKey[T: string](ctx: TPacketDataSource, _: typedesc[T]) = ctx.toCtx.parser.getString()
-template getKey[T: SomeInteger](ctx: TPacketDataSource, _: typedesc[T]) = ctx.toCtx.parser.getInt[T]()
-template getKey[T: SomeFloat](ctx: TPacketDataSource, _: typedesc[T]) = ctx.toCtx.parser.getFloat[T]()
-
-
 proc load*[U: string|SomeInteger|SomeFloat, T](_: typedesc[Table[U, T]], ctx: TPacketDataSource): Table[U, T] =
   mixin load
-  var d: T
   if ctx.toCtx.parser.tok == tkCurlyLe:
     ctx.toCtx.parser.getTok()
     var currKey: U
     while ctx.toCtx.parser.tok != tkCurlyRi:
-      currKey = ctx.getKey(U)
+      when U is string:
+        currKey = ctx.toCtx.parser.getString()
+      elif U is SomeInteger:
+        currKey = getInt[U](ctx.toCtx.parser)
+      elif U is SomeFloat:
+        currKey = getFloat[U](ctx.toCtx.parser)
+      else:
+        error "Unknown key type"
       ctx.toCtx.parser.getTok()
       ctx.toCtx.parser.eat(tkColon)
-      ctx.load(d)
-      result[currKey] = d
+      result[currKey] = T.load(ctx)
       if ctx.toCtx.parser.tok != tkComma:
         break
       ctx.toCtx.parser.getTok() #skipping "," token

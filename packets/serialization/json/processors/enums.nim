@@ -3,7 +3,7 @@ import ../context
 # ------------------- Load
 
 proc load*[T: enum](_: typedesc[T], ctx: TPacketDataSource): T =
-  result = T(ctx.toCtx.parser.getInt[int]())
+  result = T(getInt[int](ctx.toCtx.parser))
   ctx.toCtx.parser.getTok()
 
 # ------------------- Dump

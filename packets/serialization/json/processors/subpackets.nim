@@ -29,6 +29,7 @@ proc load*[T: TPacket](_: typedesc[T], ctx: TPacketDataSource): T =
   else:
     raise newException(ValueError, "Not an object")
 
+
 proc load*[T: TArrayPacket](_: typedesc[T], ctx: TPacketDataSource): T =
   mixin load
   if ctx.toCtx.parser.tok == tkBracketLe:
@@ -78,6 +79,7 @@ proc dump*[T: TPacket](p: T, dest: var string) =
       dest.add(strQuote & k & strQuoteColon)
       dump(k, p, dest)
   dest.add(strRCurly)
+
 
 proc dump*[T: TArrayPacket](p: T, dest: var string) =
   mixin dump
