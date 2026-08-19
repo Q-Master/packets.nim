@@ -3,12 +3,14 @@ import ./util/crc32
 
 
 type
-  TFieldItem* = object
+  TFieldItem* = ref object
     names: seq[NimNode]
     fType: NimNode
+    defaultValue: NimNode
     nameAs: string
+    required: bool
 
-  TCacheItem = object
+  TCacheItem = ref object
     basenames: seq[string]
     allFields: OrderedTable[string, TFieldItem]
     exportedFields: seq[string]
@@ -41,9 +43,11 @@ proc genFieldNode(field: NimNode): NimNode {.compiletime.} =
   case field.kind
   of nnkPostfix:
     # var field*: type
+    let fname = field[1].copy
+    fname.copyLineInfo(field[1])
     result = nnkPostfix.newTree(
       ident "*",
-      field[1].copy
+      fname
     )
   of nnkIdent:
     # var field: type
@@ -55,19 +59,19 @@ proc genFieldNode(field: NimNode): NimNode {.compiletime.} =
 
 proc genFieldaccessor(allIdents: openArray[NimNode], prefix: Option[NimNode] = NimNode.none): NimNode =
   if prefix.isSome:
-    result = newDotExpr(prefix.get, allIdents[0])
+    result = newDotExpr(prefix.get.copy, allIdents[0].copy)
   else:
-    result = allIdents[0]
+    result = allIdents[0].copy
   if allIdents.len > 1:
     for idx in 1 .. allIdents.high:
-      result = newDotExpr(result, allIdents[idx])
+      result = newDotExpr(result, allIdents[idx].copy)
 
 
 proc createType*(
   packetIdent: NimNode, basenames: seq[string], 
   body: NimNode,
   isArray = false
-): (NimNode, seq[string], seq[string], OrderedTable[string, TFieldItem], NimNode) {.compiletime.} =
+): (NimNode, seq[string], seq[string], OrderedTable[string, TFieldItem], seq[NimNode]) {.compiletime.} =
   let packetname = $packetIdent
   if packetCache.hasKey(packetname):
     when defined(nimsuggest):
@@ -78,102 +82,143 @@ proc createType*(
   var requiredFields: seq[string]
   var exportedFields: seq[string]
   var allFields: OrderedTable[string, TFieldItem]
-  var baseFunctions = newStmtList()
+  var baseFunctions: seq[NimNode]
   var allFieldsHash: HashSet[string]
-  let tIdent = ident "t"
-  let xIdent = ident "x"
-  for basename in basenames:
-    let t = packetCache[basename]
-    requiredFields.add(t.requiredFields)
-    exportedFields.add(t.exportedFields)
-    let basenameident = ident(basename.normalize())
-    for fname, fdata in t.allFields.pairs:
-      var newData = fdata
-      if fname in allFieldsHash or newData.nameAs in allFieldsHash:
-        error("Duplicate field " & fname, newData.names[^1])
-      newData.names.insert(basenameident, 0)
-      allFields[fname] = newData
-      allFieldsHash.incl(fname)
-      allFieldsHash.incl(newData.nameAs)
-      let fpath = genFieldaccessor(newData.names, tIdent.option)
-      let fieldIdent = ident fname
-      let ftype = newData.fType
-      baseFunctions.add(
-        quote do:
-          proc `fieldIdent`*(`tIdent`: `packetIdent`): `ftype` = `fpath`
+  if basenames.len > 0:
+    for basename in basenames:
+      let t = packetCache[basename]
+      requiredFields.add(t.requiredFields)
+      exportedFields.add(t.exportedFields)
+      let bnNormal = basename.normalize()
+      let basenameident = ident bnNormal
+      for fname, fdata in t.allFields.pairs:
+        var newData = fdata
+        if fname in allFieldsHash or newData.nameAs in allFieldsHash:
+          error("Duplicate field " & fname, newData.names[^1])
+        newData.names.insert(basenameident, 0)
+        allFields[fname] = newData
+        allFieldsHash.incl(fname)
+        allFieldsHash.incl(newData.nameAs)
+        let fpath = genFieldaccessor(newData.names, "self".ident.option)
+        let fieldIdent = ident fname
+        let fieldIdentEq = nnkAccQuoted.newTree(fieldIdent, ident "=")
+        fieldIdent.copyLineInfo(newData.names[^1])
+        fieldIdentEq.copyLineInfo(newData.names[^1])
+        let ftype = newData.fType
+        let accessor =
+          nnkFuncDef.newTree(
+            nnkPostfix.newTree(
+              ident "*",
+              fieldIdent
+            ),
+            newEmptyNode(),
+            newEmptyNode(),
+            nnkFormalParams.newTree(
+              ftype.copy,
+              nnkIdentDefs.newTree(
+                ident "self",
+                ident packetname,
+                newEmptyNode()
+              )
+            ),
+            nnkPragma.newTree(
+              ident "inline"
+            ),
+            newEmptyNode(),
+            nnkStmtList.newTree(
+              fpath.copy
+            )
+          )
+        let setter =
+          nnkFuncDef.newTree(
+            nnkPostfix.newTree(
+              ident "*",
+              fieldIdentEq,
+            ),
+            newEmptyNode(),
+            newEmptyNode(),
+            nnkFormalParams.newTree(
+              newEmptyNode(),
+              nnkIdentDefs.newTree(
+                ident "self",
+                ident packetname,
+                newEmptyNode()
+              ),
+              nnkIdentDefs.newTree(
+                ident "val",
+                ftype,
+                newEmptyNode()
+              )
+            ),
+            nnkPragma.newTree(
+              ident "inline"
+            ),
+            newEmptyNode(),
+            nnkStmtList.newTree(
+              nnkAsgn.newTree(
+                fpath.copy,
+                ident "val"
+              )
+            )
+          )
+        accessor.copyLineInfo(newData.names[^1])
+        setter.copyLineInfo(newData.names[^1])
+        baseFunctions.add(accessor)
+        baseFunctions.add(setter)
+      reclist.add(
+        nnkIdentDefs.newTree(
+          ident bnNormal,
+          ident basename,
+          newEmptyNode()
+        )
       )
-      let fieldIdentEq = newTree(nnkAccQuoted, ident(fname & "="))
-      baseFunctions.add(
-        quote do:
-          proc `fieldIdentEq`*(`tIdent`: var `packetIdent`, `xIdent`: `ftype`) = `fpath` = x
-      )
-    let bnNormal = basename.normalize()
-    reclist.add(
-      nnkIdentDefs.newTree(
-        ident(bnNormal),
-        ident(basename),
-        newEmptyNode()
-      )
-    )
 
   for elem in body.children:
     if elem.kind != nnkVarSection:
       error("Failed to parse packet var", elem)
     else:
       let trueElem = elem[0]
-      var typeNode: NimNode
-      case trueElem[0].kind
-      of nnkPostfix, nnkIdent:
-        # simple exportable fields
-        let fieldNode = genFieldNode(trueElem[0])
-        typeNode = nnkIdentDefs.newTree(
-          fieldNode,
-          trueElem[1],
-          trueElem[2]
-        )
-        if trueElem[0].kind == nnkPostFix:
-          # adding to required fields and all fields
-          if $fieldNode[1] in allFieldsHash:
-            error("Redefinition of field " & $fieldNode[1], trueElem)
-          if trueElem[1].kind != nnkBracketExpr or trueElem[1][0] != ident "Option":
-            requiredFields.add($fieldNode[1])
-          elif isArray:
-            error("Array packets can't contain optional fields", trueElem)
-          allFields[$fieldNode[1]] = TFieldItem(names: @[fieldNode[1]], fType: trueElem[1], nameAs: $fieldNode[1])
-          allFieldsHash.incl($fieldNode[1])
-          exportedFields.add($fieldNode[1])
+      let fieldNode = (
+        case trueElem[0].kind
+        of nnkPostfix, nnkIdent:
+          genFieldNode(trueElem[0])
+        of nnkPragmaExpr:
+          genFieldNode(trueElem[0][0])
         else:
-          # adding only to all fieldsHash
-          if $fieldNode in allFieldsHash:
-            error("Redefinition of field " & $fieldNode, trueElem)
-          allFieldsHash.incl($trueElem[0])
-      of nnkPragmaExpr:
-        # added some pragmas
-        let fieldNode = genFieldNode(trueElem[0][0])
-        typeNode = nnkIdentDefs.newTree(
-          fieldNode,
-          trueElem[1],
-          trueElem[2]
-        )
-        var asName = $fieldNode[1]
+          error("Unknown var section", elem)
+      )
+      var fieldNodeName = if trueElem[0].kind == nnkIdent: $fieldNode else: $fieldNode[1]
+      var asName = fieldNodeName
+      if trueElem[0].kind == nnkPragmaExpr:
         for pelem in trueElem[0][1]:
           if pelem.kind == nnkExprColonExpr and pelem[0] == ident "asName":
             asName = $pelem[1]
-        if $fieldNode[1] in allFieldsHash or asName in allFieldsHash:
-          error("Redefinition of field " & $fieldNode[1], trueElem)
-        if trueElem[0][0].kind == nnkPostFix:
-          if trueElem[1].kind != nnkBracketExpr or trueElem[1][0] != ident "Option":
-            requiredFields.add(asName)
-          elif isArray:
-            error("Array packets can't contain optional fields", trueElem)
-          exportedFields.add($fieldNode[1])
-        allFields[$fieldNode[1]] = TFieldItem(names: @[fieldNode[1]], fType: trueElem[1], nameAs: asName)
-        allFieldsHash.incl($fieldNode[1])
+      if fieldNodeName in allFieldsHash or asName in allFieldsHash:
+          error("Redefinition of field " & fieldNodeName, trueElem)
+
+      if trueElem[0].kind == nnkPostfix or (trueElem[0].kind == nnkPragmaExpr and trueElem[0][0].kind == nnkPostFix):
+        var fieldElem = TFieldItem(names: @[fieldNode[1]], fType: trueElem[1], defaultValue: trueElem[2], nameAs: asName, required: false)
+        let typeNode = nnkIdentDefs.newTree(
+          fieldNode,
+          trueElem[1],
+          trueElem[2]
+        )
+        if trueElem[1].kind != nnkBracketExpr or trueElem[1][0] != ident "Option":
+          requiredFields.add(asName)
+          fieldElem.required = true
+        elif isArray:
+          error("Array packets can't contain optional fields", trueElem)
+        exportedFields.add(fieldNodeName)
+        allFieldsHash.incl(fieldNodeName)
         allFieldsHash.incl(asName)
-      else:
-        error("Unknown var section", elem)
-      typeNode.setLineInfo(elem.lineInfoObj)
-      reclist.add(typeNode)
+        allFields[fieldNodeName] = fieldElem
+        typeNode.copyLineInfo(elem)
+        reclist.add(typeNode)
+      elif trueElem[0].kind == nnkIdent:
+        if $fieldNode in allFieldsHash:
+          error("Redefinition of field " & $fieldNode, trueElem)
+        allFieldsHash.incl($trueElem[0])
+
   let theType = nnkTypeSection.newTree(
     nnkTypeDef.newTree(
       nnkPostfix.newTree(
@@ -195,7 +240,6 @@ proc createType*(
       )
     )
   )
-  theType.copyLineInfo(packetIdent)
   result = (theType, requiredFields, exportedFields, allFields, baseFunctions)
   packetCache[packetname] = TCacheItem(
     basenames: basenames,
@@ -276,38 +320,26 @@ proc genDeserCase(cn: NimNode, fn: openArray[NimNode], ft: NimNode, isRequired: 
 proc createDeserData*(
   name: string,
   exportedFields: openArray[string],
-  fields: OrderedTable[string, TFieldItem],
-  requiredFields: openArray[string]
-): NimNode {.compiletime.} =
-  result = newStmtList()
+  fields: OrderedTable[string, TFieldItem]
+): seq[NimNode] {.compiletime.} =
   let nameIdent = ident(name)
   var cases: seq[NimNode]
   var currField: TFieldItem
   for fn in exportedFields:
     currField = fields[fn]
     cases.add(
-      genDeserCase(newStrLitNode(currField.nameAs), currField.names, currField.fType, currField.nameAs in requiredFields)
+      genDeserCase(newStrLitNode(currField.nameAs), currField.names, currField.fType, currField.required)
     )
   result.add(
     genDeserNode(nameIdent, cases, false)
-  )
-
-  let amount = newIntLitNode(requiredFields.len)
-
-  result.add(
-    quote do:
-      proc requiredFields*(_: typedesc[`nameIdent`]): int = `amount`
-      proc requiredFields*(_: `nameIdent`): int = `amount`
   )
 
 
 proc createArrayDeserData*(
   name: string, 
   exportedFields: openArray[string],
-  fields: OrderedTable[string, TFieldItem],
-  requiredFieldsAmount: int
-): NimNode {.compiletime.} =
-  result = newStmtList()
+  fields: OrderedTable[string, TFieldItem]
+): seq[NimNode] {.compiletime.} =
   let nameIdent = ident(name)
   var cases: seq[NimNode]
   var idx = 0
@@ -320,12 +352,6 @@ proc createArrayDeserData*(
     idx.inc()
   result.add(
     genDeserNode(nameIdent, cases, true)
-  )
-  let amount = newIntLitNode(requiredFieldsAmount)
-  result.add(
-    quote do:
-      proc requiredFields*(_: typedesc[`nameIdent`]): int = `amount`
-      proc requiredFields*(_: `nameIdent`): int = `amount`
   )
 
 
@@ -409,15 +435,14 @@ proc createSerData*(
   exportedFields: openArray[string],
   fields: OrderedTable[string, TFieldItem],
   requiredFields: openArray[string]
-): NimNode {.compiletime.} =
-  result = newStmtList()
+): seq[NimNode] {.compiletime.} =
   var allYields = newStmtList()
   var cases: seq[NimNode]
   var currField: TFieldItem
   for fn in exportedFields:
     currField = fields[fn]
     allYields.add(
-      buildYield(currField.nameAs, currField.nameAs in requiredFields)
+      buildYield(currField.nameAs, currField.required)
     )
     cases.add(
       genSerCase(newStrLitNode(currField.nameAs), currField.names)
@@ -455,8 +480,7 @@ proc createArraySerData*(
   name: string,
   exportedFields: openArray[string],
   fields: OrderedTable[string, TFieldItem]
-): NimNode {.compiletime.} =
-  result = newStmtList()
+): seq[NimNode] {.compiletime.} =
   var idx = 0
   var cases: seq[NimNode]
   for fn in exportedFields:
@@ -498,3 +522,124 @@ proc getNameAndBases*(head: NimNode): (NimNode, seq[string]) {.compiletime.} =
     if not packetCache.hasKey(basename):
       error("No such base type " & basename, head)
   result = (packetname, basenames)
+
+
+proc genRequiredFieldsAmount*(packetIdent: NimNode, amount: int): NimNode {.compiletime.} =
+  let pcopy = packetIdent.copy
+  result =
+    quote do:
+      proc requiredFields*(_: typedesc[`pcopy`]): int = `amount`
+      proc requiredFields*(_: `pcopy`): int = `amount`
+
+
+proc createNewInit*(packetIdent: NimNode): seq[NimNode] {.compiletime.}=
+  let packetname = $packetIdent
+  let cacheData = packetCache[packetname]
+  var allInits = nnkStmtList.newTree()
+  # generate bases init
+  var usedParams: seq[string]
+  if cacheData.basenames.len > 0:
+    for basename in cacheData.basenames:
+      let baseCacheData = packetCache[basename]
+      let baseNormalName = basename.normalize()
+      let baseInit = nnkCall.newTree(
+          nnkDotExpr.newTree(
+            nnkDotExpr.newTree(
+              ident "self",
+              ident baseNormalName
+            ),
+            ident "init"
+          )
+        )
+      for paramname in baseCacheData.allFields.keys:
+        usedParams.add(paramname)
+        baseInit.add(
+          ident paramname
+        )
+      allInits.add(baseInit)
+  # generate identdefs for formalparams and local field inits
+  var initParams = nnkFormalParams.newTree(
+    newEmptyNode(),
+    nnkIdentDefs.newTree(
+      ident "self",
+      ident packetname,
+      newEmptyNode()
+    )
+  )
+  var newParams = nnkFormalParams.newTree(
+    ident packetname,
+    nnkIdentDefs.newTree(
+      ident "_",
+      nnkBracketExpr.newTree(
+        ident "typedesc",
+        ident packetname
+      ),
+      newEmptyNode()
+    )
+  )
+  var newInitCall = nnkCall.newTree(
+    nnkDotExpr.newTree(
+      ident "result",
+      ident "init"
+    )
+  )
+  for paramname, paramdata in cacheData.allFields.pairs:
+    initParams.add(
+      nnkIdentDefs.newTree(
+        ident paramname,
+        paramdata.fType.copy,
+        paramdata.defaultValue.copy
+      )
+    )
+    newParams.add(
+      nnkIdentDefs.newTree(
+        ident paramname,
+        paramdata.fType.copy,
+        paramdata.defaultValue.copy
+      )
+    )
+    newInitCall.add(ident paramname)
+    if paramname notin usedParams:
+      allInits.add(
+        nnkAsgn.newTree(
+          nnkDotExpr.newTree(
+            ident "self",
+            ident paramname
+          ),
+          ident paramname
+        )
+      )
+  result.add(
+    nnkProcDef.newTree(
+      nnkPostfix.newTree(
+        ident "*",
+        ident "init"
+      ),
+      newEmptyNode(),
+      newEmptyNode(),
+      initParams,
+      newEmptyNode(),
+      newEmptyNode(),
+      allInits
+    )
+  )
+  result.add(
+    nnkProcDef.newTree(
+      nnkPostfix.newTree(
+        ident "*",
+        ident "new"
+      ),
+      newEmptyNode(),
+      newEmptyNode(),
+      newParams,
+      newEmptyNode(),
+      newEmptyNode(),
+      nnkStmtList.newTree(
+        nnkDotExpr.newTree(
+          ident "result",
+          ident "new"
+        ),
+        newInitCall
+      )
+    )
+  )

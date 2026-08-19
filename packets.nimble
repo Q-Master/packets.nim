@@ -3,8 +3,6 @@ description = "Pure Nim declarative packets system for serializing/deserializing
 version     = "2.4.0"
 license     = "MIT"
 author      = "Vladimir Berezenko <qmaster2000@gmail.com>"
-srcDir      = "packets"
-
 
 # Dependencies
 requires "nim >= 2.0.2"
