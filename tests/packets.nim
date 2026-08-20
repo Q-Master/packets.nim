@@ -1,7 +1,6 @@
 import std/[unittest, options, times]
-import packets/packets
-import packets/json/serialization
-import types
+import ../packets
+import ./types
 
 
 packet PacketWithNotExportedFields:
@@ -18,14 +17,14 @@ suite "Packets":
     var nowDate = now()
     nowDate = nowDate - initDuration(nanoseconds=nowDate.nanosecond)
     #echo nowDate.nanosecond
-    var pkt = SimplePacket(
-      field1: 10,
-      field2: 862.0,
-      field3: first,
-      field4: true,
-      field5: "test string",
-      field6: nowTime,
-      field7: nowDate)
+    var pkt = SimplePacket.new(
+      field1 = 10,
+      field2 = 862.0,
+      field3 = first,
+      field4 = true,
+      field5 = "test string",
+      field6 = nowTime,
+      field7 = nowDate)
     check(pkt.field1 == 10)
     check(pkt.field2 == 862.0)
     check(pkt.field3 == first)
@@ -45,8 +44,8 @@ suite "Packets":
     check(pktLoaded.field7 == nowDate)
   
   test "Simple packet with default value":
-    var pkt = SimplePacketWithDefault(field2:"x")
-    var pkt2 = SimplePacketWithDefault(field1:100, field2:"y")
+    var pkt = SimplePacketWithDefault.new(field2 = "x")
+    var pkt2 = SimplePacketWithDefault.new(field1 = 100, field2 = "y")
     check(pkt.field1 == 10)
     check(pkt.field2 == "x")
     check(pkt2.field1 == 100)
@@ -61,7 +60,7 @@ suite "Packets":
     check(pktLoaded2.field2 == "y")
 
   test "Packet with renamed field":
-    var pkt = PacketWithRename(field1: 7.0, field2: false)
+    var pkt = PacketWithRename.new(field1 = 7.0, field2 = false)
     check(pkt.field1 == 7.0)
     check(pkt.field2 == false)
     var js: string = pkt.dumps()
@@ -72,7 +71,7 @@ suite "Packets":
   test "Packet inheritance":
     var nowTime = getTime()
     nowTime = nowTime - initDuration(nanoseconds=nowTime.nanosecond)
-    var pkt = InheritedPacket(field2: nowTime)
+    var pkt = InheritedPacket.new(field2 = nowTime)
     check(pkt.field1 == 3.0)
     check(pkt.field2 == nowTime)
     let js: string = pkt.dumps()
@@ -81,8 +80,8 @@ suite "Packets":
     check(pktLoaded.field2 == nowTime)
   
   test "Packet with optional field":
-    let pkt = PacketWithOptionalFields(field1: 10)
-    let pkt2 = PacketWithOptionalFields(field1: 1000, field2: true.option)
+    let pkt = PacketWithOptionalFields.new(field1 = 10)
+    let pkt2 = PacketWithOptionalFields.new(field1 = 1000, field2 = true.option)
     check(pkt.field1 == 10)
     check(pkt.field2 == none(bool))
     check(pkt2.field1 == 1000)
@@ -97,9 +96,9 @@ suite "Packets":
     check(pktLoaded2.field2 == true.option)
 
   test "Packet with optional field and default value":
-    let pkt = PacketWithOptionalFieldsAndDefault()
-    let pkt2 = PacketWithOptionalFieldsAndDefault(field1: 1000.option)
-    let pkt3 = PacketWithOptionalFieldsAndDefault(field1: 7.option, field2: 4.0.option)
+    let pkt = PacketWithOptionalFieldsAndDefault.new()
+    let pkt2 = PacketWithOptionalFieldsAndDefault.new(field1 = 1000.option)
+    let pkt3 = PacketWithOptionalFieldsAndDefault.new(field1 = 7.option, field2 = 4.0.option)
     check(pkt.field1 == none(int))
     check(pkt.field2 == 3.0.option)
     check(pkt2.field1 == 1000.option)
@@ -120,7 +119,7 @@ suite "Packets":
     check(pktLoaded3.field2 == 4.0.option)
 
   test "Packet with not exported fields":
-    let pkt = PacketWithNotExportedFields(field1: 5, field2: false)
+    let pkt = PacketWithNotExportedFields.new(field1 = 5, field2 = false)
     check(pkt.field1 == 5)
     check(pkt.field2 == false)
     let js = pkt.dumps()
@@ -129,7 +128,7 @@ suite "Packets":
     check(pktLoaded.field2 == false)
 
   test "Packet with subpacket":
-    let pkt = PacketWithSubpacket(field1: 50, field2: SimplePacketWithDefault(field2: "subpacket"))
+    let pkt = PacketWithSubpacket.new(field1 = 50, field2 = SimplePacketWithDefault.new(field2 = "subpacket"))
     check(pkt.field1 == 50)
     check(pkt.field2 is SimplePacketWithDefault)
     check(pkt.field2.field1 == 10)
@@ -142,7 +141,7 @@ suite "Packets":
     check(pktLoaded.field2.field2 == "subpacket")
 
   test "Packet with optional subpacket":
-    let pkt = PacketWithOptionalSubpacket(field1: SimplePacketWithDefault(field2: "subpacket").option)
+    let pkt = PacketWithOptionalSubpacket.new(field1 = SimplePacketWithDefault.new(field2 = "subpacket").option)
     check(pkt.field1.get() is SimplePacketWithDefault)
     check(pkt.field1.get().field1 == 10)
     check(pkt.field1.get().field2 == "subpacket")
@@ -157,7 +156,7 @@ suite "Array Packets":
     discard
 
   test "Simple ArrayPacket":
-    let pkt = SimpleArrayPacket(field1: 1, field2: 2.0)
+    let pkt = SimpleArrayPacket.new(field1 = 1, field2 = 2.0)
     check(pkt.field1 == 1)
     check(pkt.field2 == 2.0)
     let js = pkt.dumps()

@@ -539,6 +539,15 @@ proc createNewInit*(packetIdent: NimNode): seq[NimNode] {.compiletime.}=
   let packetname = $packetIdent
   let cacheData = packetCache[packetname]
   var allInits = nnkStmtList.newTree()
+  var dumbNewInits = nnkStmtList.newTree(
+    nnkCall.newTree(
+      nnkDotExpr.newTree(
+        ident "system",
+        ident "new"
+      ),
+      ident "self"
+    )
+  )
   # generate bases init
   var usedParams: seq[string]
   if cacheData.basenames.len > 0:
@@ -563,6 +572,15 @@ proc createNewInit*(packetIdent: NimNode): seq[NimNode] {.compiletime.}=
             ident baseNormalName
           ),
           baseInit
+        )
+      )
+      dumbNewInits.add(
+        nnkDotExpr.newTree(
+          nnkDotExpr.newTree(
+            ident "self",
+            ident baseNormalName
+          ),
+          ident "new"
         )
       )
   # generate identdefs for formalparams and local field inits
@@ -649,5 +667,28 @@ proc createNewInit*(packetIdent: NimNode): seq[NimNode] {.compiletime.}=
         ),
         newInitCall
       )
+    )
+  )
+  result.add(
+    nnkProcDef.newTree(
+      nnkPostfix.newTree(
+        ident "*",
+        ident "new"
+      ),
+      newEmptyNode(),
+      newEmptyNode(),
+      nnkFormalParams.newTree(
+        newEmptyNode(),
+        nnkIdentDefs.newTree(
+          ident "self",
+          nnkVarTy.newTree(
+            ident packetname
+          ),
+          newEmptyNode()
+        )
+      ),
+      newEmptyNode(),
+      newEmptyNode(),
+      dumbNewInits
     )
   )
