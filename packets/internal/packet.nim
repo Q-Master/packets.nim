@@ -9,6 +9,7 @@ type
     defaultValue: NimNode
     nameAs: string
     required: bool
+    optional: bool
 
   TCacheItem = ref object
     basenames: seq[string]
@@ -39,22 +40,32 @@ proc generateId(name, bases: openArray[string]): int32 {.compiletime.} =
       int32(packetId)
 
 
-proc genFieldNode(field: NimNode): NimNode {.compiletime.} =
+proc genFieldNode(field: NimNode): (NimNode, NimNode, string) {.compiletime.} =
   case field.kind
   of nnkPostfix:
     # var field*: type
     let fname = field[1].copy
     fname.copyLineInfo(field[1])
-    result = nnkPostfix.newTree(
+    let f = nnkPostfix.newTree(
       ident "*",
       fname
     )
+    f.copyLineInfo(field)
+    result = (f, fname, $fname)
   of nnkIdent:
     # var field: type
-    result = field.copy
+    let f = field.copy
+    f.copyLineInfo(field)
+    result = (f, f, $f)
+  of nnkPragmaExpr:
+    #var with pragma
+    var (fNode, fName, asName) = genFieldNode(field[0])
+    for pelem in field[1]:
+      if pelem.kind == nnkExprColonExpr and pelem[0] == ident "asName":
+        asName = $pelem[1]
+    result = (fNode, fName, asName)
   else:
     error("Unknown var section " & $field.kind, field)
-  result.copyLineInfo(field)
 
 
 proc genFieldaccessor(allIdents: openArray[NimNode], prefix: Option[NimNode] = NimNode.none): NimNode =
@@ -178,46 +189,38 @@ proc createType*(
       error("Failed to parse packet var", elem)
     else:
       let trueElem = elem[0]
-      let fieldNode = (
-        case trueElem[0].kind
-        of nnkPostfix, nnkIdent:
-          genFieldNode(trueElem[0])
-        of nnkPragmaExpr:
-          genFieldNode(trueElem[0][0])
-        else:
-          error("Unknown var section", elem)
+      let (fieldNode, fieldNodeName, asName) = genFieldNode(trueElem[0])
+      if $fieldNodeName in allFieldsHash or asName in allFieldsHash:
+          error("Redefinition of field " & $fieldNodeName, trueElem)
+      let fieldElem = TFieldItem(names: @[fieldNodeName], fType: trueElem[1], defaultValue: trueElem[2], nameAs: asName, required: false, optional: false)
+      let typeNode = nnkIdentDefs.newTree(
+        fieldNode,
+        fieldElem.fType,
+        fieldElem.defaultValue
       )
-      var fieldNodeName = if trueElem[0].kind == nnkIdent: $fieldNode else: $fieldNode[1]
-      var asName = fieldNodeName
-      if trueElem[0].kind == nnkPragmaExpr:
-        for pelem in trueElem[0][1]:
-          if pelem.kind == nnkExprColonExpr and pelem[0] == ident "asName":
-            asName = $pelem[1]
-      if fieldNodeName in allFieldsHash or asName in allFieldsHash:
-          error("Redefinition of field " & fieldNodeName, trueElem)
+      typeNode.copyLineInfo(elem)
 
-      if trueElem[0].kind == nnkPostfix or (trueElem[0].kind == nnkPragmaExpr and trueElem[0][0].kind == nnkPostFix):
-        var fieldElem = TFieldItem(names: @[fieldNode[1]], fType: trueElem[1], defaultValue: trueElem[2], nameAs: asName, required: false)
-        let typeNode = nnkIdentDefs.newTree(
-          fieldNode,
-          trueElem[1],
-          trueElem[2]
-        )
-        if trueElem[1].kind != nnkBracketExpr or trueElem[1][0] != ident "Option":
+      if fieldNode.kind == nnkPostfix:
+        if fieldElem.fType.kind != nnkBracketExpr or fieldElem.fType[0] != ident "Option":
           requiredFields.add(asName)
           fieldElem.required = true
         elif isArray:
           error("Array packets can't contain optional fields", trueElem)
-        exportedFields.add(fieldNodeName)
-        allFieldsHash.incl(fieldNodeName)
-        allFieldsHash.incl(asName)
-        allFields[fieldNodeName] = fieldElem
-        typeNode.copyLineInfo(elem)
-        reclist.add(typeNode)
-      elif trueElem[0].kind == nnkIdent:
-        if $fieldNode in allFieldsHash:
-          error("Redefinition of field " & $fieldNode, trueElem)
-        allFieldsHash.incl($trueElem[0])
+        else:
+          #optional field
+          fieldElem.optional = true
+          if fieldElem.defaultValue.kind == nnkEmpty:
+            #optional field with no default value - setting to `ftype.none`
+            fieldElem.defaultValue = newDotExpr(
+              fieldElem.fType[1],
+              ident "none"
+            )
+        exportedFields.add($fieldNodeName)
+
+      allFieldsHash.incl($fieldNodeName)
+      allFieldsHash.incl(asName)
+      allFields[$fieldNodeName] = fieldElem
+      reclist.add(typeNode)
 
   let theType = nnkTypeSection.newTree(
     nnkTypeDef.newTree(
@@ -544,11 +547,8 @@ proc createNewInit*(packetIdent: NimNode): seq[NimNode] {.compiletime.}=
       let baseNormalName = basename.normalize()
       let baseInit = nnkCall.newTree(
           nnkDotExpr.newTree(
-            nnkDotExpr.newTree(
-              ident "self",
-              ident baseNormalName
-            ),
-            ident "init"
+            ident basename,
+            ident "new"
           )
         )
       for paramname in baseCacheData.allFields.keys:
@@ -556,7 +556,15 @@ proc createNewInit*(packetIdent: NimNode): seq[NimNode] {.compiletime.}=
         baseInit.add(
           ident paramname
         )
-      allInits.add(baseInit)
+      allInits.add(
+        nnkAsgn.newTree(
+          nnkDotExpr.newTree(
+            ident "self",
+            ident baseNormalName
+          ),
+          baseInit
+        )
+      )
   # generate identdefs for formalparams and local field inits
   var initParams = nnkFormalParams.newTree(
     newEmptyNode(),

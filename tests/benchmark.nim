@@ -1,6 +1,7 @@
 import std/[times]
+import packets/serialization/json
 import packets/packets
-import packets/json/serialization
+
 
 packet Test:
   var userName* {.as_name: "user_name".}: string
@@ -21,5 +22,7 @@ var f: Test1
 for _ in 0..1000000:
   f = Test1.loads(tJson)
   f.tproc()
+
+#echo f.pretty()
 
 echo "Nim packets " &  $(now()-t)
