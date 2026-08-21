@@ -3,29 +3,30 @@ import internal/packet
 
 
 macro packet*(head, body: untyped): untyped =
-  let (packetname, basenames) = getNameAndBases(head)
+  let (packetname, basenames, needId) = getNameAndBases(head)
   result = newStmtList()
-  let (typeNode, requiredFields, exportedFields, allFields, baseFunctions) = createType(packetname, basenames, body)
+  let (typeNode, baseFunctions) = createType(packetname, basenames, body, needId)
   result.add(typeNode)
   result.add(baseFunctions)
-  result.add(createNewInit(packetname))
-  let deserData = createDeserData($packetname, exportedFields, allFields)
+  result.add(createNewInit(packetname, needId))
+  let deserData = createDeserData($packetname, needId)
   result.add(deserData)
-  result.add(genRequiredFieldsAmount(packetname, requiredFields.len))
-  let serData = createSerData($packetname, exportedFields, allFields, requiredFields)
+  result.add(genRequiredFieldsAmount(packetname))
+  let serData = createSerData($packetname, needId)
   result.add(serData)
   echo result.repr
 
 
 macro arrayPacket*(head, body: untyped): untyped =
-  let (packetname, basenames) = getNameAndBases(head)
+  let (packetname, basenames, needId) = getNameAndBases(head)
   result = newStmtList()
-  let (typeNode, requiredFields, exportedFields, allFields, baseFunctions) = createType(packetname, basenames, body, true)
+  let (typeNode, baseFunctions) = createType(packetname, basenames, body, needId, true)
   result.add(typeNode)
   result.add(baseFunctions)
-  result.add(createNewInit(packetname))
-  let deserData = createArrayDeserData($packetname, exportedFields, allFields)
+  result.add(createNewInit(packetname, needId))
+  let deserData = createArrayDeserData($packetname, needId)
   result.add(deserData)
-  result.add(genRequiredFieldsAmount(packetname, requiredFields.len))
-  let serData = createArraySerData($packetname, exportedFields, allFields)
+  result.add(genRequiredFieldsAmount(packetname))
+  let serData = createArraySerData($packetname, needId)
   result.add(serData)
+  echo result.repr

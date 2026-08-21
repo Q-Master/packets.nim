@@ -170,6 +170,36 @@ suite "Array Packets":
     check(pktLoaded.field1 == 1)
     check(pktLoaded.field2 == 2.0)
 
+suite "Packet IDs":
+  setup:
+    discard
+
+  test "Packet":
+    var pkt = SimplePacketWithId.new(
+      field1 = 10,
+      field2 = 862.0
+    )
+    check(pkt.field1 == 10)
+    check(pkt.field2 == 862.0)
+    check(pkt.packetId == -1793554631)
+    let js = pkt.dumps()
+    #echo "Resulted JSON: ", js
+    let pktLoaded = SimplePacketWithId.loads(js)
+    check(pktLoaded.field1 == 10)
+    check(pktLoaded.field2 == 862.0)
+
+  test "ArrayPacket":
+    let pkt = SimpleArrayPacketWithId.new(field1 = 1, field2 = 2.0)
+    check(pkt.field1 == 1)
+    check(pkt.field2 == 2.0)
+    check(pkt.packetId == 1755727651)
+    let js = pkt.dumps()
+    #echo "Resulted JSON: ", js
+    check(js.len == 18)
+    let pktLoaded = SimpleArrayPacketWithId.loads(js)
+    check(pktLoaded.field1 == 1)
+    check(pktLoaded.field2 == 2.0)
+
 suite "Seq of packets":
   setup:
     discard
@@ -187,35 +217,12 @@ suite "Seq of packets":
     let pktd {.used.}= pkt.dumps()
 
 
-#[
 suite "Packet with table":
   setup:
     discard
 
   test "Packet with table":
     var js: string
-    when defined(enablePacketIDs):
-      js = "{\"id\": -2135839261, \"field1\": 1, \"field2\": {\"a\": 1}}"
-    else:
-      js = "{\"field1\": 1, \"field2\": {\"a\": 1}}"
+    js = "{\"field1\": 1, \"field2\": {\"a\": 1}}"
     let pkt = PacketWithTable.loads(js)
     check(pkt.field2["a"] == 1)
-]#
-
-#[
-# Produces some unknown error, so disabled right now
-suite "Cyclic packets":
-  setup:
-    discard
-
-  test "Cyclic packet":
-    let pkt = PacketCyclic.new(field1 = PacketCyclic.none, field2 = 2)
-    let pkt2 = PacketCyclic.new(field1 = pkt.option, field2 = 1)
-    let js = pkt2.dumps()
-    #echo "Resulted JSON: ", $js
-    let pktLoaded = PacketCyclic.loads(js)
-    check(pktLoaded.field1.get() is PacketCyclic)
-    check(pktLoaded.field2 == 1)
-    check(pktLoaded.field1.get().field1.isNone())
-    check(pktLoaded.field1.get().field2 == 2)
-]#
