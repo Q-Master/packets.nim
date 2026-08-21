@@ -1,4 +1,4 @@
-import std/[streams, unicode, strutils]
+import std/[streams, unicode, strutils, math]
 import ../../types
 
 
@@ -227,6 +227,7 @@ proc parseString(self: JsonParser, dest: var string) =
 proc parseInt(self: JsonParser): (int, int) =
   var res: int = 0
   var multiplier: int = 1
+  var negator: int = 1
   var pos: int
   var ch: char
   while true:
@@ -234,7 +235,7 @@ proc parseInt(self: JsonParser): (int, int) =
     ch = self.source.readChar()
     case ch
     of '-':
-      res *= -1
+      negator *= -1
     of '0' .. '9':
       if res > 0:
         res *= 10
@@ -243,7 +244,7 @@ proc parseInt(self: JsonParser): (int, int) =
     else:
       self.source.setPosition(pos)
       break
-  result = (res, multiplier)
+  result = (res*negator, multiplier)
 
 
 proc getString*(self: JsonParser): string =
@@ -261,6 +262,8 @@ proc isFloat*(self: JsonParser): bool =
     ch = self.source.readChar()
     offset += 1
     if ch in '0' .. '9':
+      continue
+    if ch in {'-', '+'}:
       continue
     elif ch in {'.', 'E', 'e'}:
       self.skip(-offset)
@@ -288,23 +291,27 @@ proc getFloat*[T: SomeFloat](self: JsonParser): T =
   var mantissa = 0
   var exponent = 0
   var multiplier = 0
+  var gotDot = false
   if self.tok == tkFloat or self.tok == tkInt:
     (mantissa, multiplier) = self.parseInt()
     f = mantissa.float
-    pos = self.source.getPosition()
-    let ch = self.source.readChar()
-    case ch
-    of '.':
-      (exponent, multiplier) = self.parseInt()
-      f += exponent.float / multiplier.float
-    of 'E', 'e':
-      (exponent, multiplier) = self.parseInt()
-      if exponent > 0:
-        f *= exponent.float
-      elif exponent < 0:
-        f /= exponent.float
-    else:
-      self.source.setPosition(pos)
+    while true:
+      pos = self.source.getPosition()
+      let ch = self.source.readChar()
+      case ch
+      of '.':
+        if gotDot:
+          self.source.setPosition(pos)
+          break
+        gotDot = true
+        (exponent, multiplier) = self.parseInt()
+        f += exponent.float / multiplier.float
+      of 'E', 'e':
+        (exponent, multiplier) = self.parseInt()
+        f *= 10.0.pow(exponent.float)
+        break
+      else:
+        self.source.setPosition(pos)
     result = T(f)
     self.tok = tkError
   else:
