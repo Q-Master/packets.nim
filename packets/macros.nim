@@ -14,7 +14,6 @@ macro packet*(head, body: untyped): untyped =
   result.add(genRequiredFieldsAmount(packetname))
   let serData = createSerData($packetname, needId)
   result.add(serData)
-  echo result.repr
 
 
 macro arrayPacket*(head, body: untyped): untyped =
@@ -29,4 +28,3 @@ macro arrayPacket*(head, body: untyped): untyped =
   result.add(genRequiredFieldsAmount(packetname))
   let serData = createArraySerData($packetname, needId)
   result.add(serData)
-  echo result.repr
